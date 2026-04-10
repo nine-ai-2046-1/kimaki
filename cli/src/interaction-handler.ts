@@ -180,7 +180,7 @@ export function registerInteractionHandler({
 
           if (!hasKimakiBotPermission(interaction.member, interaction.guild)) {
             await interaction.reply({
-              content: `You don't have permission to use this command.\nTo use Kimaki, ask a server admin to give you the **Kimaki** role.`,
+              content: `You don't have permission to use this command.\nIf this self-host bot uses an allowed user list, your Discord user ID must be included. Otherwise, ask a server admin to give you the **Kimaki** role.`,
               flags: MessageFlags.Ephemeral,
             })
             return
@@ -387,7 +387,7 @@ export function registerInteractionHandler({
         if (interaction.isButton()) {
           if (!hasKimakiBotPermission(interaction.member, interaction.guild)) {
             await interaction.reply({
-              content: `You don't have permission to use this.\nTo use Kimaki, ask a server admin to give you the **Kimaki** role.`,
+              content: `You don't have permission to use this.\nIf this self-host bot uses an allowed user list, your Discord user ID must be included. Otherwise, ask a server admin to give you the **Kimaki** role.`,
               flags: MessageFlags.Ephemeral,
             })
             return
@@ -445,7 +445,7 @@ export function registerInteractionHandler({
         if (interaction.isStringSelectMenu()) {
           if (!hasKimakiBotPermission(interaction.member, interaction.guild)) {
             await interaction.reply({
-              content: `You don't have permission to use this.\nTo use Kimaki, ask a server admin to give you the **Kimaki** role.`,
+              content: `You don't have permission to use this.\nIf this self-host bot uses an allowed user list, your Discord user ID must be included. Otherwise, ask a server admin to give you the **Kimaki** role.`,
               flags: MessageFlags.Ephemeral,
             })
             return
@@ -518,7 +518,7 @@ export function registerInteractionHandler({
         if (interaction.isModalSubmit()) {
           if (!hasKimakiBotPermission(interaction.member, interaction.guild)) {
             await interaction.reply({
-              content: `You don't have permission to use this.\nTo use Kimaki, ask a server admin to give you the **Kimaki** role.`,
+              content: `You don't have permission to use this.\nIf this self-host bot uses an allowed user list, your Discord user ID must be included. Otherwise, ask a server admin to give you the **Kimaki** role.`,
               flags: MessageFlags.Ephemeral,
             })
             return

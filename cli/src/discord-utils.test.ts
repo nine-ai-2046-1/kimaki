@@ -101,6 +101,44 @@ describe('splitMarkdownForDiscord', () => {
 })
 
 describe('hasKimakiBotPermission', () => {
+  test('allows only configured Discord user ids when allowlist is set', () => {
+    process.env.ALLOWED_DISCORD_USER_IDS = 'member-id,other-id'
+
+    const guild = {
+      ownerId: 'owner-id',
+      roles: { cache: new Map() },
+    } as any
+
+    const member = {
+      user: { id: 'member-id' },
+      permissions: '0',
+      roles: [],
+    } as any
+
+    expect(hasKimakiBotPermission(member, guild)).toBe(true)
+
+    delete process.env.ALLOWED_DISCORD_USER_IDS
+  })
+
+  test('denies even admins when Discord user allowlist is set and they are missing', () => {
+    process.env.ALLOWED_DISCORD_USER_IDS = 'someone-else'
+
+    const guild = {
+      ownerId: 'owner-id',
+      roles: { cache: new Map() },
+    } as any
+
+    const member = {
+      user: { id: 'member-id' },
+      permissions: PermissionsBitField.Flags.Administrator.toString(),
+      roles: [],
+    } as any
+
+    expect(hasKimakiBotPermission(member, guild)).toBe(false)
+
+    delete process.env.ALLOWED_DISCORD_USER_IDS
+  })
+
   test('allows API interaction member when kimaki role exists', () => {
     const kimakiRoleId = '111'
     const guild = {

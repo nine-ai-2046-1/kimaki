@@ -22,6 +22,7 @@ import { discordApiUrl } from './discord-urls.js'
 import { Lexer } from 'marked'
 import { splitTablesFromMarkdown } from './format-tables.js'
 import { getChannelDirectory, getThreadWorktree } from './database.js'
+import { getAllowedDiscordUserIds } from './config.js'
 import { limitHeadingDepth } from './limit-heading-depth.js'
 import { unnestCodeBlocksFromLists } from './unnest-code-blocks.js'
 import { createLogger, LogPrefix } from './logger.js'
@@ -49,12 +50,16 @@ export function hasKimakiBotPermission(
   if (hasNoKimakiRole) {
     return false
   }
+  const allowedDiscordUserIds = getAllowedDiscordUserIds()
+  const memberId = member instanceof GuildMember ? member.id : member.user.id
+  if (allowedDiscordUserIds.size > 0) {
+    return allowedDiscordUserIds.has(memberId)
+  }
   const memberPermissions =
     member instanceof GuildMember
       ? member.permissions
       : new PermissionsBitField(BigInt(member.permissions))
   const ownerId = member instanceof GuildMember ? member.guild.ownerId : guild?.ownerId
-  const memberId = member instanceof GuildMember ? member.id : member.user.id
   const isOwner = ownerId ? memberId === ownerId : false
   const isAdmin = memberPermissions.has(PermissionsBitField.Flags.Administrator)
   const canManageServer = memberPermissions.has(PermissionsBitField.Flags.ManageGuild)

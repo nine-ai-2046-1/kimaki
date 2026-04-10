@@ -4,7 +4,10 @@ import { ChannelType, type TextChannel } from 'discord.js'
 import fs from 'node:fs'
 import type { CommandContext, AutocompleteContext } from './types.js'
 import { getBackendCascade, getChannelDirectory } from '../database.js'
-import { assertBackendAvailable } from '../backends/backend-registry.js'
+import {
+  assertBackendAvailable,
+  getBackendExecutor,
+} from '../backends/backend-registry.js'
 import { initializeOpencodeForDirectory } from '../opencode.js'
 import { SILENT_MESSAGE_FLAGS, resolveProjectDirectoryFromAutocomplete } from '../discord-utils.js'
 import { getOrCreateRuntime } from '../session-handler/thread-session-runtime.js'
@@ -61,6 +64,16 @@ export async function handleSessionCommand({
     const selectedBackend =
       (await getBackendCascade({ channelId: textChannel.id, appId })) || 'opencode'
     await assertBackendAvailable({ backendId: selectedBackend })
+    const backendExecutor = getBackendExecutor({ backendId: selectedBackend })
+    if (!backendExecutor) {
+      await command.editReply(
+        `Backend executor not implemented yet for ${selectedBackend}`,
+      )
+      return
+    }
+    await backendExecutor.createSessionHandle({
+      projectDirectory,
+    })
 
     let fullPrompt = prompt
     if (files.length > 0) {

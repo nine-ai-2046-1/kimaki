@@ -73,6 +73,22 @@ export function setProjectsDir(dir: string): void {
   store.setState({ projectsDir: resolvedDir })
 }
 
+export function getAllowedDiscordUserIds(): Set<string> {
+  const rawValue =
+    process.env.KIMAKI_ALLOWED_DISCORD_USER_IDS
+    || process.env.ALLOWED_DISCORD_USER_IDS
+    || ''
+  const parsedIds = rawValue
+    .split(',')
+    .map((value) => {
+      return value.trim()
+    })
+    .filter((value) => {
+      return value.length > 0
+    })
+  return new Set(parsedIds)
+}
+
 export type { RegisteredUserCommand } from './store.js'
 
 const DEFAULT_LOCK_PORT = 29988

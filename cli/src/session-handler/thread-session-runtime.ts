@@ -22,11 +22,7 @@ import type { QueuedMessage } from './thread-runtime-state.js'
 import type { OpencodeClient } from '@opencode-ai/sdk/v2'
 import {
   getOpencodeClient,
-  initializeOpencodeForDirectory,
-  buildSessionPermissions,
-  parsePermissionRules,
   subscribeOpencodeServerLifecycle,
-  writeInjectionGuardConfig,
 } from '../opencode.js'
 import { isAbortError } from '../utils.js'
 import { createLogger, LogPrefix } from '../logger.js'
@@ -53,6 +49,7 @@ import {
   getSessionEventSnapshot,
   type BackendId,
 } from '../database.js'
+import { getBackendExecutor } from '../backends/backend-registry.js'
 import {
   showPermissionButtons,
   cleanupPermissionContext,
@@ -3043,39 +3040,13 @@ export class ThreadSessionRuntime {
         ...(modelField ? { model: modelField } : {}),
         ...variantField,
       }
-      const promptResult = await errore.tryAsync(() => {
-        return getClient().session.promptAsync(request)
+      const promptResult = await this.sendPromptViaBackendExecutor({
+        backendId: input.backendId || 'opencode',
+        request,
       })
-      if (promptResult instanceof Error || promptResult.error) {
-        const errorMessage = (() => {
-          if (promptResult instanceof Error) {
-            return promptResult.message
-          }
-          const err = promptResult.error
-          if (err && typeof err === 'object') {
-            if (
-              'data' in err &&
-              err.data &&
-              typeof err.data === 'object' &&
-              'message' in err.data
-            ) {
-              return String(err.data.message)
-            }
-            if (
-              'errors' in err &&
-              Array.isArray(err.errors) &&
-              err.errors.length > 0
-            ) {
-              return JSON.stringify(err.errors)
-            }
-          }
-          return 'Unknown OpenCode API error'
-        })()
-        const errObj = promptResult instanceof Error
-          ? promptResult
-          : new Error(errorMessage)
-        void notifyError(errObj, 'promptAsync failed in submitViaOpencodeQueue')
-        await cleanupOnError(`✗ OpenCode API error: ${errorMessage}`)
+      if (promptResult instanceof Error) {
+        void notifyError(promptResult, 'promptAsync failed in submitViaOpencodeQueue')
+        await cleanupOnError(`✗ OpenCode API error: ${promptResult.message}`)
         return
       }
 
@@ -3266,6 +3237,24 @@ export class ThreadSessionRuntime {
     return backend || 'opencode'
   }
 
+  private async sendPromptViaBackendExecutor({
+    backendId,
+    request,
+  }: {
+    backendId: BackendId
+    request: Parameters<OpencodeClient['session']['promptAsync']>[0]
+  }): Promise<Error | { accepted: boolean }> {
+    const backendExecutor = getBackendExecutor({ backendId })
+    if (!backendExecutor?.sendPrompt) {
+      return new Error(`Backend sendPrompt not implemented for ${backendId}`)
+    }
+    return backendExecutor.sendPrompt({
+      projectDirectory: this.projectDirectory,
+      sdkDirectory: this.sdkDirectory,
+      request,
+    })
+  }
+
   /**
    * Abort the currently active run. Does NOT kill the listener.
    * Calls session.abort best-effort and lets event-stream idle settle the run.
@@ -3279,10 +3268,15 @@ export class ThreadSessionRuntime {
     reason: string
     sessionId: string
   }): Promise<void> {
-    const client = getOpencodeClient(this.projectDirectory)
-    if (!client) {
+    const backendId = (await getBackendCascade({
+      sessionId,
+      channelId: this.channelId,
+      appId: this.appId,
+    })) || 'opencode'
+    const backendExecutor = getBackendExecutor({ backendId })
+    if (!backendExecutor?.abortSession) {
       logger.log(
-        `[ABORT API] id=${abortId} reason=${reason} sessionId=${sessionId} skipped=no-client`,
+        `[ABORT API] id=${abortId} reason=${reason} sessionId=${sessionId} skipped=no-backend-abort backend=${backendId}`,
       )
       return
     }
@@ -3291,10 +3285,12 @@ export class ThreadSessionRuntime {
     logger.log(
       `[ABORT API] id=${abortId} reason=${reason} sessionId=${sessionId} start`,
     )
+    const abortSession = backendExecutor.abortSession
     const abortResult = await errore.tryAsync(() => {
-      return client.session.abort({
-        sessionID: sessionId,
-        directory: this.sdkDirectory,
+      return abortSession({
+        sessionId,
+        projectDirectory: this.projectDirectory,
+        sdkDirectory: this.sdkDirectory,
       })
     })
     if (!(abortResult instanceof Error)) {
@@ -3851,8 +3847,9 @@ export class ThreadSessionRuntime {
       return
     }
 
-    const promptResponse = await errore.tryAsync(() => {
-      return getClient().session.promptAsync({
+    const promptResponse = await this.sendPromptViaBackendExecutor({
+      backendId: input.backendId || 'opencode',
+      request: {
         sessionID: session.id,
         directory: this.sdkDirectory,
         parts,
@@ -3868,23 +3865,14 @@ export class ThreadSessionRuntime {
         model: earlyModelParam,
         agent: earlyAgentPreference,
         ...variantField,
-      })
+      },
     })
 
-    if (promptResponse instanceof Error || promptResponse.error) {
-      const errorMessage = (() => {
-        if (promptResponse instanceof Error) {
-          return promptResponse.message
-        }
-        return parseOpenCodeErrorMessage(promptResponse.error)
-      })()
-      const errorObject = promptResponse instanceof Error
-        ? promptResponse
-        : new Error(errorMessage)
-      logger.error(`[DISPATCH] Prompt API call failed: ${errorMessage}`)
-      void notifyError(errorObject, 'OpenCode API error during local queue prompt')
+    if (promptResponse instanceof Error) {
+      logger.error(`[DISPATCH] Prompt API call failed: ${promptResponse.message}`)
+      void notifyError(promptResponse, 'OpenCode API error during local queue prompt')
       this.stopTyping()
-      await sendThreadMessage(this.thread, `✗ OpenCode API error: ${errorMessage}`, {
+      await sendThreadMessage(this.thread, `✗ OpenCode API error: ${promptResponse.message}`, {
         flags: NOTIFY_MESSAGE_FLAGS,
       })
       await this.dispatchAction(() => {
@@ -3925,6 +3913,15 @@ export class ThreadSessionRuntime {
       }
   > {
     const directory = this.projectDirectory
+    const backendId = (await getBackendCascade({
+      sessionId: this.state?.sessionId,
+      channelId: this.channelId,
+      appId: this.appId,
+    })) || 'opencode'
+    const backendExecutor = getBackendExecutor({ backendId })
+    if (!backendExecutor) {
+      return new Error(`Backend executor not implemented yet for ${backendId}`)
+    }
 
     // Resolve worktree info for server initialization
     const worktreeInfo = await getThreadWorktree(this.thread.id)
@@ -3936,15 +3933,6 @@ export class ThreadSessionRuntime {
       ? worktreeInfo?.project_directory
       : undefined
 
-    const getClientResult = await initializeOpencodeForDirectory(directory, {
-      originalRepoDirectory,
-      channelId: this.channelId,
-    })
-    if (getClientResult instanceof Error) {
-      return getClientResult
-    }
-    const getClient = getClientResult
-
     // Check thread state for existing session ID
     let sessionId = this.state?.sessionId
     if (!sessionId) {
@@ -3952,58 +3940,36 @@ export class ThreadSessionRuntime {
       sessionId = await getThreadSession(this.thread.id) || undefined
     }
 
-    let session: { id: string } | undefined
-    let createdNewSession = false
-
-    if (sessionId) {
-      const sessionResponse = await errore.tryAsync(() => {
-        return getClient().session.get({
-          sessionID: sessionId,
-          directory: this.sdkDirectory,
-        })
-      })
-      if (!(sessionResponse instanceof Error) && sessionResponse.data) {
-        session = sessionResponse.data
-      }
+    const ensuredSession = await backendExecutor.ensureSession?.({
+      threadId: this.thread.id,
+      projectDirectory: directory,
+      sdkDirectory: this.sdkDirectory,
+      channelId: this.channelId,
+      existingSessionId: sessionId,
+      originalRepoDirectory,
+      permissions,
+      injectionGuardPatterns,
+    })
+    if (!ensuredSession) {
+      return new Error(`Backend ensureSession not implemented for ${backendId}`)
+    }
+    if (ensuredSession instanceof Error) {
+      return ensuredSession
     }
 
-    if (!session) {
-      // Pass per-session external_directory permissions so this session can
-      // access its own project directory (and worktree origin if applicable)
-      // without prompts. These override the server-level 'ask' default via
-      // opencode's findLast() rule evaluation.
-      // CLI --permission rules are appended after base rules so they win
-      // via opencode's findLast() evaluation.
-      const sessionPermissions = [
-        ...buildSessionPermissions({
-          directory: this.sdkDirectory,
-          originalRepoDirectory,
-        }),
-        ...parsePermissionRules(permissions ?? []),
-      ]
-      // Omit title so OpenCode auto-generates a summary from the conversation
-      const sessionResponse = await getClient().session.create({
-        directory: this.sdkDirectory,
-        permission: sessionPermissions,
-      })
-      session = sessionResponse.data
+    const session = { id: ensuredSession.handle.sessionId }
+    const createdNewSession = ensuredSession.createdNewSession
+    const runtimeAdapter = ensuredSession.runtimeAdapter
+    if (!runtimeAdapter || runtimeAdapter.kind !== 'opencode') {
+      return new Error(`Unsupported runtime adapter for ${backendId}`)
+    }
+    const { getClient } = runtimeAdapter
+
+    if (createdNewSession) {
       // Insert DB row immediately so the external-sync poller sees
       // source='kimaki' before the next poll tick and skips this session.
-      // The upsert at the end of ensureSession is kept for the reuse path.
-      if (session) {
-        await setThreadSession(this.thread.id, session.id)
-        if (injectionGuardPatterns?.length) {
-          writeInjectionGuardConfig({
-            sessionId: session.id,
-            scanPatterns: injectionGuardPatterns,
-          })
-        }
-      }
-      createdNewSession = true
-    }
-
-    if (!session) {
-      return new Error('Failed to create or get session')
+      // The upsert below is kept for the reuse path.
+      await setThreadSession(this.thread.id, session.id)
     }
 
     // Store session in DB and thread state

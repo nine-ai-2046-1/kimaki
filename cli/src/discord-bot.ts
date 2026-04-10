@@ -504,7 +504,7 @@ export async function startDiscordBot({
 
         if (!hasKimakiBotPermission(message.member)) {
           await message.reply({
-            content: `You don't have permission to start sessions.\nTo use Kimaki, ask a server admin to give you the **Kimaki** role.`,
+            content: `You don't have permission to start sessions.\nIf this self-host bot uses an allowed user list, your Discord user ID must be included. Otherwise, ask a server admin to give you the **Kimaki** role.`,
             flags: SILENT_MESSAGE_FLAGS,
           })
           return

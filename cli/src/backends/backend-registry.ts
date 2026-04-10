@@ -1,5 +1,10 @@
 import type { BackendId } from '../database.js'
-import type { BackendAvailability, BackendRunner } from './backend-runner.js'
+import type {
+  BackendAvailability,
+  BackendExecutor,
+  BackendRunner,
+} from './backend-runner.js'
+import { isBackendExecutor } from './backend-runner.js'
 import { createOpenCodeRunner } from './open-code-runner.js'
 
 type BackendRegistration = {
@@ -84,6 +89,18 @@ export function getBackendRegistration({
   return backendRegistrations.find((registration) => {
     return registration.id === backendId
   })
+}
+
+export function getBackendExecutor({
+  backendId,
+}: {
+  backendId: BackendId
+}): BackendExecutor | undefined {
+  const registration = getBackendRegistration({ backendId })
+  if (!registration || !isBackendExecutor(registration.runner)) {
+    return undefined
+  }
+  return registration.runner
 }
 
 export async function assertBackendAvailable({
