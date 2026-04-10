@@ -35,12 +35,17 @@ function joinLines({ lines }: { lines: string[] }): string {
 
 async function replyWithBackendList({
   interaction,
+  appId,
 }: {
   interaction: ChatInputCommandInteraction
+  appId: string
 }): Promise<void> {
-  const availability = await listBackendAvailability()
+  const availability = await listBackendAvailability({ appId })
   const lines = availability.map((item) => {
     if (item.available) {
+      if (item.backendId === 'gemini_cli') {
+        return `- ${item.label}: available (text-mode backend)`
+      }
       return `- ${item.label}: available`
     }
     return `- ${item.label}: unavailable (${item.reason || 'unknown reason'})`
@@ -96,7 +101,7 @@ async function setSelectedBackend({
 
   const availability = await (async () => {
     try {
-      return await assertBackendAvailable({ backendId })
+      return await assertBackendAvailable({ backendId, appId })
     } catch (error) {
       if (error instanceof Error) {
         return error
@@ -106,7 +111,9 @@ async function setSelectedBackend({
   })()
   if (availability instanceof Error) {
     await interaction.editReply(
-      `${formatBackendLabel({ backendId })} is unavailable: ${availability.message}`,
+      backendId === 'gemini_cli'
+        ? `${formatBackendLabel({ backendId })} is unavailable: ${availability.message}\nSet a Gemini API key with /transcription-key or GEMINI_API_KEY, then try again.`
+        : `${formatBackendLabel({ backendId })} is unavailable: ${availability.message}`,
     )
     return
   }
@@ -119,9 +126,11 @@ async function setSelectedBackend({
 
   if (scope === 'machine') {
     await setGlobalBackend({ appId, backendId })
-    await interaction.editReply(
-      `Machine default backend set to ${formatBackendLabel({ backendId })}`,
-    )
+      await interaction.editReply(
+      backendId === 'gemini_cli'
+        ? 'Machine default backend set to Gemini CLI. Phase 2 Gemini runs in text-mode and does not provide full OpenCode tool/runtime parity.'
+        : `Machine default backend set to ${formatBackendLabel({ backendId })}`,
+      )
     return
   }
 
@@ -140,7 +149,9 @@ async function setSelectedBackend({
 
   await setSessionBackend({ sessionId, backendId })
   await interaction.editReply(
-    `Session backend set to ${formatBackendLabel({ backendId })}`,
+    backendId === 'gemini_cli'
+      ? 'Session backend set to Gemini CLI. Phase 2 Gemini runs in text-mode and does not provide full OpenCode tool/runtime parity.'
+      : `Session backend set to ${formatBackendLabel({ backendId })}`,
   )
 }
 
@@ -151,7 +162,7 @@ export async function handleBackendCommand({
   await command.deferReply({ flags: MessageFlags.Ephemeral })
   const action = command.options.getString('action', true)
   if (action === 'list') {
-    await replyWithBackendList({ interaction: command })
+    await replyWithBackendList({ interaction: command, appId })
     return
   }
   if (action === 'current') {

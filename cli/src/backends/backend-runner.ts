@@ -63,6 +63,7 @@ export type BackendPromptRequest = Parameters<
 
 export type BackendPromptResponse = {
   accepted: boolean
+  text?: string
 }
 
 export type BackendSendPromptArgs = {

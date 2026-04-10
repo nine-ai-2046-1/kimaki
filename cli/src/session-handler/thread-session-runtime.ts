@@ -3141,6 +3141,12 @@ export class ThreadSessionRuntime {
     // plain text. Covers Discord chat messages, /new-session, /queue, CLI
     // `kimaki send --prompt`, and scheduled tasks — all funnel through here.
     input = maybeConvertLeadingCommand(input)
+    if (input.backendId === 'gemini_cli' && input.mode !== 'local-queue') {
+      return this.enqueueViaLocalQueue({
+        ...input,
+        mode: 'local-queue',
+      })
+    }
     if (input.mode === 'local-queue') {
       return this.enqueueViaLocalQueue(input)
     }
@@ -3243,8 +3249,8 @@ export class ThreadSessionRuntime {
   }: {
     backendId: BackendId
     request: Parameters<OpencodeClient['session']['promptAsync']>[0]
-  }): Promise<Error | { accepted: boolean }> {
-    const backendExecutor = getBackendExecutor({ backendId })
+  }): Promise<Error | { accepted: boolean; text?: string }> {
+    const backendExecutor = getBackendExecutor({ backendId, appId: this.appId })
     if (!backendExecutor?.sendPrompt) {
       return new Error(`Backend sendPrompt not implemented for ${backendId}`)
     }
@@ -3253,6 +3259,28 @@ export class ThreadSessionRuntime {
       sdkDirectory: this.sdkDirectory,
       request,
     })
+  }
+
+  private async buildGeminiThreadTranscript(): Promise<string> {
+    const fetchedMessages = await errore.tryAsync(() => {
+      return this.thread.messages.fetch({ limit: 12 })
+    })
+    if (fetchedMessages instanceof Error) {
+      return ''
+    }
+
+    const transcriptLines = [...fetchedMessages.values()]
+      .reverse()
+      .flatMap((message) => {
+        if (!message.content.trim()) {
+          return []
+        }
+        const isBotMessage = message.author.id === this.thread.client.user?.id
+        const role = isBotMessage ? 'assistant' : 'user'
+        return [`${role}: ${message.content.trim()}`]
+      })
+
+    return transcriptLines.join('\n')
   }
 
   /**
@@ -3273,7 +3301,7 @@ export class ThreadSessionRuntime {
       channelId: this.channelId,
       appId: this.appId,
     })) || 'opencode'
-    const backendExecutor = getBackendExecutor({ backendId })
+    const backendExecutor = getBackendExecutor({ backendId, appId: this.appId })
     if (!backendExecutor?.abortSession) {
       logger.log(
         `[ABORT API] id=${abortId} reason=${reason} sessionId=${sessionId} skipped=no-backend-abort backend=${backendId}`,
@@ -3503,6 +3531,7 @@ export class ThreadSessionRuntime {
   private async dispatchPrompt(input: QueuedMessage): Promise<void> {
     this.lastDisplayedContextPercentage = 0
     this.lastRateLimitDisplayTime = 0
+    const activeBackendId = input.backendId || 'opencode'
 
     // ── Ensure session ────────────────────────────────────────
     const sessionResult = await this.ensureSession({
@@ -3528,8 +3557,45 @@ export class ThreadSessionRuntime {
     const { session, getClient, createdNewSession } = sessionResult
     await setSessionBackend({
       sessionId: session.id,
-      backendId: input.backendId || 'opencode',
+      backendId: activeBackendId,
     })
+
+    if (activeBackendId === 'gemini_cli') {
+      const transcript = await this.buildGeminiThreadTranscript()
+      const promptResponse = await this.sendPromptViaBackendExecutor({
+        backendId: activeBackendId,
+        request: {
+          sessionID: session.id,
+          directory: this.sdkDirectory,
+          parts: [
+            {
+              type: 'text',
+              text: transcript
+                ? `Conversation so far:\n${transcript}\n\nLatest user message:\n${input.prompt}`
+                : input.prompt,
+            },
+          ],
+          system: `Discord thread ${this.thread.id} in project ${this.projectDirectory}. Respond in plain text for Discord.`,
+        },
+      })
+      this.stopTyping()
+      if (promptResponse instanceof Error) {
+        logger.error(`[DISPATCH] Gemini CLI call failed: ${promptResponse.message}`)
+        void notifyError(promptResponse, 'Gemini CLI error during local queue prompt')
+        await sendThreadMessage(this.thread, `✗ Gemini CLI error: ${promptResponse.message}`, {
+          flags: NOTIFY_MESSAGE_FLAGS,
+        })
+        await this.dispatchAction(() => {
+          return this.tryDrainQueue({ showIndicator: true })
+        })
+        return
+      }
+      const responseText = promptResponse.text?.trim() || 'Gemini returned no output.'
+      await sendThreadMessage(this.thread, `⬥ ${responseText}`, {
+        flags: NOTIFY_MESSAGE_FLAGS,
+      })
+      return
+    }
 
     // Ensure listener is running now that we have a valid OpenCode client.
     // The eager start in enqueueIncoming may have failed if the client
@@ -3918,7 +3984,7 @@ export class ThreadSessionRuntime {
       channelId: this.channelId,
       appId: this.appId,
     })) || 'opencode'
-    const backendExecutor = getBackendExecutor({ backendId })
+    const backendExecutor = getBackendExecutor({ backendId, appId: this.appId })
     if (!backendExecutor) {
       return new Error(`Backend executor not implemented yet for ${backendId}`)
     }

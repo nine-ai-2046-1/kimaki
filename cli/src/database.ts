@@ -1549,6 +1549,18 @@ export async function getGeminiApiKey(appId: string): Promise<string | null> {
   return row?.gemini_api_key ?? null
 }
 
+export async function resolveGeminiApiKey(appId: string): Promise<string | null> {
+  const storedKey = await getGeminiApiKey(appId)
+  if (storedKey) {
+    return storedKey
+  }
+  const envKey = process.env.GEMINI_API_KEY?.trim()
+  if (envKey) {
+    return envKey
+  }
+  return null
+}
+
 /**
  * Set the Gemini API key for a bot.
  * Note: The bot must already have a token (via setBotToken) before calling this.

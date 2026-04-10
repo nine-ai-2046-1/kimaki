@@ -5,6 +5,7 @@ import type {
   BackendRunner,
 } from './backend-runner.js'
 import { isBackendExecutor } from './backend-runner.js'
+import { createGeminiCliRunner } from './gemini-cli-runner.js'
 import { createOpenCodeRunner } from './open-code-runner.js'
 
 type BackendRegistration = {
@@ -69,13 +70,29 @@ const backendRegistrations: BackendRegistration[] = [
   },
 ]
 
-export function listBackendRegistrations(): BackendRegistration[] {
-  return backendRegistrations
+export function listBackendRegistrations({
+  appId,
+}: {
+  appId?: string
+} = {}): BackendRegistration[] {
+  return backendRegistrations.map((registration) => {
+    if (registration.id !== 'gemini_cli') {
+      return registration
+    }
+    return {
+      ...registration,
+      runner: createGeminiCliRunner({ appId }),
+    }
+  })
 }
 
-export async function listBackendAvailability(): Promise<BackendAvailability[]> {
+export async function listBackendAvailability({
+  appId,
+}: {
+  appId?: string
+} = {}): Promise<BackendAvailability[]> {
   return Promise.all(
-    backendRegistrations.map(async (registration) => {
+    listBackendRegistrations({ appId }).map(async (registration) => {
       return registration.runner.isAvailable()
     }),
   )
@@ -83,20 +100,24 @@ export async function listBackendAvailability(): Promise<BackendAvailability[]> 
 
 export function getBackendRegistration({
   backendId,
+  appId,
 }: {
   backendId: BackendId
+  appId?: string
 }): BackendRegistration | undefined {
-  return backendRegistrations.find((registration) => {
+  return listBackendRegistrations({ appId }).find((registration) => {
     return registration.id === backendId
   })
 }
 
 export function getBackendExecutor({
   backendId,
+  appId,
 }: {
   backendId: BackendId
+  appId?: string
 }): BackendExecutor | undefined {
-  const registration = getBackendRegistration({ backendId })
+  const registration = getBackendRegistration({ backendId, appId })
   if (!registration || !isBackendExecutor(registration.runner)) {
     return undefined
   }
@@ -105,10 +126,12 @@ export function getBackendExecutor({
 
 export async function assertBackendAvailable({
   backendId,
+  appId,
 }: {
   backendId: BackendId
+  appId?: string
 }): Promise<BackendAvailability> {
-  const registration = getBackendRegistration({ backendId })
+  const registration = getBackendRegistration({ backendId, appId })
   if (!registration) {
     throw new Error(`Unknown backend: ${backendId}`)
   }

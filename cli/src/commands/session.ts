@@ -63,8 +63,8 @@ export async function handleSessionCommand({
 
     const selectedBackend =
       (await getBackendCascade({ channelId: textChannel.id, appId })) || 'opencode'
-    await assertBackendAvailable({ backendId: selectedBackend })
-    const backendExecutor = getBackendExecutor({ backendId: selectedBackend })
+    await assertBackendAvailable({ backendId: selectedBackend, appId })
+    const backendExecutor = getBackendExecutor({ backendId: selectedBackend, appId })
     if (!backendExecutor) {
       await command.editReply(
         `Backend executor not implemented yet for ${selectedBackend}`,
