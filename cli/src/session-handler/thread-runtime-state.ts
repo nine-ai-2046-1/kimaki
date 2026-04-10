@@ -13,6 +13,7 @@
 
 import type { DiscordFileAttachment } from '../message-formatting.js'
 import type { RepliedMessageContext } from '../system-message.js'
+import type { BackendId } from '../database.js'
 import { store } from '../store.js'
 
 // ── Shared types ─────────────────────────────────────────────────
@@ -32,6 +33,8 @@ export type QueuedMessage = {
   // Bot application ID. Used for model-preference resolution fallback
   // (looking up channel/session model overrides keyed by appId).
   appId?: string
+  // Selected coding backend for this queued/session-bound request.
+  backendId?: BackendId
   // When set, dispatches via session.command() instead of session.prompt().
   // Used by /queue-command and user-defined slash commands.
   command?: { name: string; arguments: string }

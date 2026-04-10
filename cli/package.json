@@ -7,6 +7,7 @@
     "dev": "tsx src/bin.ts",
     "prepublishOnly": "pnpm generate && pnpm tsc",
     "build": "pnpm generate && pnpm tsc",
+    "build:runtime": "pnpm generate && tsc -p tsconfig.runtime.json",
     "dev:bun": "DEBUG=1 bun --env-file .env src/bin.ts",
     "watch": "tsx scripts/watch-session.ts",
     "generate": "prisma generate && pnpm generate:sql",

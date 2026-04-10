@@ -15,7 +15,6 @@ import {
   confirm,
   log,
   multiselect,
-  select,
   spinner,
 } from '@clack/prompts'
 import {
@@ -131,6 +130,73 @@ import {
   removeAccount,
 } from './anthropic-auth-state.js'
 
+function loadDotEnvFile({ filePath }: { filePath: string }): void {
+  if (!fs.existsSync(filePath)) {
+    return
+  }
+
+  const envContent = fs.readFileSync(filePath, 'utf8')
+  for (const rawLine of envContent.split(/\r?\n/u)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) {
+      continue
+    }
+
+    const normalizedLine = line.startsWith('export ')
+      ? line.slice('export '.length).trim()
+      : line
+    const separatorIndex = normalizedLine.indexOf('=')
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = normalizedLine.slice(0, separatorIndex).trim()
+    if (!key || process.env[key] !== undefined) {
+      continue
+    }
+
+    const rawValue = normalizedLine.slice(separatorIndex + 1).trim()
+    const quotedValue =
+      (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+      (rawValue.startsWith("'") && rawValue.endsWith("'"))
+    const value = quotedValue ? rawValue.slice(1, -1) : rawValue
+    process.env[key] = value
+  }
+}
+
+function loadLocalEnvFiles(): void {
+  const cwd = process.cwd()
+  loadDotEnvFile({ filePath: path.join(cwd, '.env') })
+  loadDotEnvFile({ filePath: path.join(cwd, '.env.local') })
+}
+
+type ConfiguredBotToken = {
+  token: string
+  sourceName: 'KIMAKI_BOT_TOKEN' | 'DISCORD_BOT_TOKEN'
+}
+
+function getConfiguredBotToken(): ConfiguredBotToken | undefined {
+  const kimakiBotToken = process.env.KIMAKI_BOT_TOKEN?.trim()
+  if (kimakiBotToken) {
+    return {
+      token: kimakiBotToken,
+      sourceName: 'KIMAKI_BOT_TOKEN',
+    }
+  }
+
+  const discordBotToken = process.env.DISCORD_BOT_TOKEN?.trim()
+  if (discordBotToken) {
+    return {
+      token: discordBotToken,
+      sourceName: 'DISCORD_BOT_TOKEN',
+    }
+  }
+
+  return undefined
+}
+
+loadLocalEnvFiles()
+
 const cliLogger = createLogger(LogPrefix.CLI)
 
 // Gateway bot mode constants.
@@ -197,7 +263,8 @@ async function resolveBotCredentials({ appIdOverride }: { appIdOverride?: string
 }> {
   // DB first: getBotTokenWithMode() sets store.discordBaseUrl which is
   // required in gateway mode so REST calls route through the proxy.
-  // Without this, inherited KIMAKI_BOT_TOKEN (a gateway credential like
+  // Without this, inherited bot token env vars (for example KIMAKI_BOT_TOKEN
+  // or DISCORD_BOT_TOKEN carrying a gateway credential like
   // clientId:clientSecret) would be sent directly to discord.com → 401.
   const botRow = await getBotTokenWithMode().catch((e: unknown) => {
     cliLogger.error('Database error:', e instanceof Error ? e.message : String(e))
@@ -208,13 +275,13 @@ async function resolveBotCredentials({ appIdOverride }: { appIdOverride?: string
   }
 
   // Fall back to env var for CI/headless deployments with no database
-  const envToken = process.env.KIMAKI_BOT_TOKEN
-  if (envToken) {
-    const appId = appIdOverride || appIdFromToken(envToken)
-    return { token: envToken, appId }
+  const configuredBotToken = getConfiguredBotToken()
+  if (configuredBotToken) {
+    const appId = appIdOverride || appIdFromToken(configuredBotToken.token)
+    return { token: configuredBotToken.token, appId }
   }
 
-  cliLogger.error('No bot token found. Set KIMAKI_BOT_TOKEN env var or run `kimaki` first to set up.')
+  cliLogger.error('No bot token found. Set KIMAKI_BOT_TOKEN or DISCORD_BOT_TOKEN in your env/.env, or run `kimaki` first to set up.')
   process.exit(EXIT_NO_RESTART)
 }
 
@@ -471,16 +538,29 @@ async function printDiscordInstallUrlAndExit({
 
   const existingBot = await getBotTokenWithMode()
 
-  if (!existingBot) {
-    cliLogger.error('No bot configured yet. Run `kimaki` first to set up.')
+  const resolvedInstallAppId = (() => {
+    if (existingBot) {
+      return existingBot.appId
+    }
+    const configuredBotToken = getConfiguredBotToken()
+    if (!configuredBotToken) {
+      return undefined
+    }
+    return appIdFromToken(configuredBotToken.token)
+  })()
+
+  if (!resolvedInstallAppId) {
+    cliLogger.error(
+      'No bot configured yet. Set KIMAKI_BOT_TOKEN or DISCORD_BOT_TOKEN in your env/.env, or run `kimaki` first to set up.',
+    )
     process.exit(EXIT_NO_RESTART)
   }
 
   const installUrl = generateDiscordInstallUrlForBot({
-    appId: existingBot.appId,
-    mode: existingBot.mode,
-    clientId: existingBot.clientId,
-    clientSecret: existingBot.clientSecret,
+    appId: resolvedInstallAppId,
+    mode: existingBot?.mode || 'self_hosted',
+    clientId: existingBot?.clientId ?? null,
+    clientSecret: existingBot?.clientSecret ?? null,
   })
   if (installUrl instanceof Error) {
     cliLogger.error(`Failed to build install URL: ${installUrl.message}`)
@@ -488,7 +568,7 @@ async function printDiscordInstallUrlAndExit({
   }
 
   cliLogger.log(installUrl)
-  if (existingBot.mode === 'gateway') {
+  if (existingBot?.mode === 'gateway') {
     cliLogger.log(
       'This gateway install URL contains your client credentials. Do not share it.',
     )
@@ -915,12 +995,12 @@ async function backgroundInit({
 }
 
 // Resolve bot credentials from (in priority order):
-// 1. KIMAKI_BOT_TOKEN env var (headless/CI deployments)
+// 1. KIMAKI_BOT_TOKEN or DISCORD_BOT_TOKEN env var (self-host direct token path)
 // 2. Saved credentials in the database (self-hosted or gateway mode)
-// 3. Interactive wizard (gateway OAuth or self-hosted token entry)
+// 3. Interactive wizard (self-hosted token entry by default, gateway only with --gateway)
 //
 // credentialSource tells the caller how creds were obtained:
-//   'env'    — KIMAKI_BOT_TOKEN env var
+//   'env'    — token came from env/.env
 //   'saved'  — reused from database
 //   'wizard' — user just completed onboarding (gateway OAuth or self-hosted)
 async function resolveCredentials({
@@ -932,7 +1012,7 @@ async function resolveCredentials({
   forceGateway: boolean
   gatewayCallbackUrl?: string
 }): Promise<CredentialResult> {
-  const envToken = process.env.KIMAKI_BOT_TOKEN
+  const configuredBotToken = getConfiguredBotToken()
   const existingBot = await getBotTokenWithMode()
   // When --gateway is requested and the resolved bot is still self-hosted,
   // check if saved gateway credentials exist by looking up the gateway app_id
@@ -944,18 +1024,26 @@ async function resolveCredentials({
       })
     : undefined
 
-  // 1. Env var takes precedence (headless deployments)
-  if (envToken && !forceRestartOnboarding && !forceGateway) {
-    const derivedAppId = appIdFromToken(envToken)
+  // 1. Self-host direct token env path takes precedence unless the user is explicitly
+  // forcing a different onboarding mode.
+  if (configuredBotToken && !forceRestartOnboarding && !forceGateway) {
+    const derivedAppId = appIdFromToken(configuredBotToken.token)
     if (!derivedAppId) {
       cliLogger.error(
-        'Could not derive Application ID from KIMAKI_BOT_TOKEN. The token appears malformed.',
+        `Could not derive Application ID from ${configuredBotToken.sourceName}. The token appears malformed.`,
       )
       process.exit(EXIT_NO_RESTART)
     }
-    await setBotToken(derivedAppId, envToken)
-    cliLogger.log(`Using KIMAKI_BOT_TOKEN env var (App ID: ${derivedAppId})`)
-    return { appId: derivedAppId, token: envToken, credentialSource: 'env', isGatewayMode: false }
+    await setBotToken(derivedAppId, configuredBotToken.token)
+    cliLogger.log(
+      `Using ${configuredBotToken.sourceName} from env/.env (App ID: ${derivedAppId})`,
+    )
+    return {
+      appId: derivedAppId,
+      token: configuredBotToken.token,
+      credentialSource: 'env',
+      isGatewayMode: false,
+    }
   }
 
   // 2. Saved credentials in the database
@@ -1013,32 +1101,11 @@ async function resolveCredentials({
     note('Ignoring saved credentials due to --restart-onboarding flag', 'Restart Onboarding')
   }
 
-  // When --gateway is passed or we're in non-TTY mode, skip the mode selector.
-  // Non-TTY without --gateway was already rejected above.
+  // Self-hosted is the default product path. Only enter the gateway flow when the
+  // user explicitly passes --gateway.
   const modeChoice: 'gateway' | 'self_hosted' = forceGateway
     ? 'gateway'
-    : await (async () => {
-        const choice = await select({
-          message:
-            'How do you want to connect to Discord?\n\nGateway: uses Kimaki\'s pre-built bot — no setup, instant. Self-hosted: you create your own Discord bot at discord.com/developers.',
-          options: [
-            {
-              value: 'gateway' as const,
-              disabled: true,
-              label: 'Gateway (pre-built Kimaki bot, currently disabled because of Discord verification process. will be re-enabled soon)',
-            },
-            {
-              value: 'self_hosted' as const,
-              label: 'Self-hosted (your own Discord bot, 5-10 min setup)',
-            },
-          ],
-        })
-        if (isCancel(choice)) {
-          cancel('Setup cancelled')
-          process.exit(0)
-        }
-        return choice
-      })()
+    : 'self_hosted'
 
   // ── Gateway mode flow ──
   if (modeChoice === 'gateway') {
@@ -1180,7 +1247,8 @@ async function resolveCredentials({
   note(
     '1. Go to https://discord.com/developers/applications\n' +
       '2. Click "New Application"\n' +
-      '3. Give your application a name',
+      '3. Give your application a name\n' +
+      '4. Create a Bot inside the application',
     'Step 1: Create Discord Application',
   )
 
@@ -1239,7 +1307,7 @@ async function resolveCredentials({
   await setBotToken(derivedAppId, wizardToken)
 
   note(
-    `Bot install URL:\n${generateBotInstallUrl({ clientId: derivedAppId })}\n\nYou MUST install the bot in your Discord server before continuing.`,
+    `Bot install URL:\n${generateBotInstallUrl({ clientId: derivedAppId })}\n\nThis is your self-host bot install URL. You must install this bot in your Discord server before continuing.`,
     'Step 4: Install Bot to Server',
   )
   const installed = await text({

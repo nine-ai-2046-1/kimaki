@@ -94,6 +94,7 @@ import { handleRestartOpencodeServerCommand } from './commands/restart-opencode-
 import { handleRunCommand } from './commands/run-command.js'
 import { handleContextUsageCommand } from './commands/context-usage.js'
 import { handleSessionIdCommand } from './commands/session-id.js'
+import { handleBackendCommand } from './commands/backend.js'
 
 import { handleUpgradeAndRestartCommand } from './commands/upgrade.js'
 import { handleMcpCommand, handleMcpSelectMenu } from './commands/mcp.js'
@@ -188,6 +189,10 @@ export function registerInteractionHandler({
           switch (interaction.commandName) {
             case 'new-session':
               await handleSessionCommand({ command: interaction, appId })
+              return
+
+            case 'backend':
+              await handleBackendCommand({ command: interaction, appId })
               return
 
             case 'new-worktree':

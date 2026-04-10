@@ -3,7 +3,7 @@
 // API keys, and model preferences in <dataDir>/discord-sessions.db.
 
 import { getPrisma, closePrisma } from './db.js'
-import type { Prisma, session_events, BotMode, VerbosityLevel, WorktreeStatus, ChannelType as PrismaChannelType, ThreadSessionSource } from './generated/client.js'
+import type { Prisma, session_events, BotMode, VerbosityLevel, WorktreeStatus, ChannelType as PrismaChannelType, ThreadSessionSource, BackendId } from './generated/client.js'
 import crypto from 'node:crypto'
 
 import { store } from './store.js'
@@ -35,6 +35,7 @@ export async function closeDatabase() {
 export type { VerbosityLevel }
 export type { WorktreeStatus }
 export type { PrismaChannelType }
+export type { BackendId }
 
 export type ThreadWorktree = {
   thread_id: string
@@ -751,6 +752,115 @@ export async function setSessionAgent(
     create: { session_id: sessionId, agent_name: agentName },
     update: { agent_name: agentName },
   })
+}
+
+// ============================================================================
+// Backend Preference Functions
+// ============================================================================
+
+export async function getChannelBackend(
+  channelId: string,
+): Promise<BackendId | undefined> {
+  const prisma = await getPrisma()
+  const row = await prisma.channel_backends.findUnique({
+    where: { channel_id: channelId },
+  })
+  return row?.backend_id
+}
+
+export async function setChannelBackend({
+  channelId,
+  backendId,
+}: {
+  channelId: string
+  backendId: BackendId
+}): Promise<void> {
+  const prisma = await getPrisma()
+  await prisma.channel_backends.upsert({
+    where: { channel_id: channelId },
+    create: { channel_id: channelId, backend_id: backendId },
+    update: { backend_id: backendId, updated_at: new Date() },
+  })
+}
+
+export async function getSessionBackend(
+  sessionId: string,
+): Promise<BackendId | undefined> {
+  const prisma = await getPrisma()
+  const row = await prisma.session_backends.findUnique({
+    where: { session_id: sessionId },
+  })
+  return row?.backend_id
+}
+
+export async function setSessionBackend({
+  sessionId,
+  backendId,
+}: {
+  sessionId: string
+  backendId: BackendId
+}): Promise<void> {
+  const prisma = await getPrisma()
+  await prisma.session_backends.upsert({
+    where: { session_id: sessionId },
+    create: { session_id: sessionId, backend_id: backendId },
+    update: { backend_id: backendId },
+  })
+}
+
+export async function getGlobalBackend(
+  appId: string,
+): Promise<BackendId | undefined> {
+  const prisma = await getPrisma()
+  const row = await prisma.global_backends.findUnique({
+    where: { app_id: appId },
+  })
+  return row?.backend_id
+}
+
+export async function setGlobalBackend({
+  appId,
+  backendId,
+}: {
+  appId: string
+  backendId: BackendId
+}): Promise<void> {
+  const prisma = await getPrisma()
+  await prisma.global_backends.upsert({
+    where: { app_id: appId },
+    create: { app_id: appId, backend_id: backendId },
+    update: { backend_id: backendId, updated_at: new Date() },
+  })
+}
+
+export async function getBackendCascade({
+  sessionId,
+  channelId,
+  appId,
+}: {
+  sessionId?: string
+  channelId?: string
+  appId?: string
+}): Promise<BackendId | undefined> {
+  if (sessionId) {
+    const session = await getSessionBackend(sessionId)
+    if (session) {
+      return session
+    }
+  }
+  if (channelId) {
+    const channel = await getChannelBackend(channelId)
+    if (channel) {
+      return channel
+    }
+  }
+  if (appId) {
+    const global = await getGlobalBackend(appId)
+    if (global) {
+      return global
+    }
+  }
+  return undefined
 }
 
 // ============================================================================

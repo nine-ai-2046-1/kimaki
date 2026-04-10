@@ -2,9 +2,9 @@
 
 import { ChannelType, type TextChannel } from 'discord.js'
 import fs from 'node:fs'
-import path from 'node:path'
 import type { CommandContext, AutocompleteContext } from './types.js'
-import { getChannelDirectory } from '../database.js'
+import { getBackendCascade, getChannelDirectory } from '../database.js'
+import { assertBackendAvailable } from '../backends/backend-registry.js'
 import { initializeOpencodeForDirectory } from '../opencode.js'
 import { SILENT_MESSAGE_FLAGS, resolveProjectDirectoryFromAutocomplete } from '../discord-utils.js'
 import { getOrCreateRuntime } from '../session-handler/thread-session-runtime.js'
@@ -58,13 +58,17 @@ export async function handleSessionCommand({
       .map((f) => f.trim())
       .filter((f) => f)
 
+    const selectedBackend =
+      (await getBackendCascade({ channelId: textChannel.id, appId })) || 'opencode'
+    await assertBackendAvailable({ backendId: selectedBackend })
+
     let fullPrompt = prompt
     if (files.length > 0) {
       fullPrompt = `${prompt}\n\n@${files.join(' @')}`
     }
 
     const starterMessage = await textChannel.send({
-      content: `🚀 **Starting OpenCode session**\n📝 ${prompt}${files.length > 0 ? `\n📎 Files: ${files.join(', ')}` : ''}`,
+      content: `🚀 **Starting ${selectedBackend === 'opencode' ? 'OpenCode' : selectedBackend} session**\n📝 ${prompt}${files.length > 0 ? `\n📎 Files: ${files.join(', ')}` : ''}`,
       flags: SILENT_MESSAGE_FLAGS,
     })
 
@@ -87,14 +91,15 @@ export async function handleSessionCommand({
       channelId: textChannel.id,
       appId,
     })
-    await runtime.enqueueIncoming({
-      prompt: fullPrompt,
-      userId: command.user.id,
-      username: command.user.displayName,
-      agent,
-      appId,
-      mode: 'opencode',
-    })
+      await runtime.enqueueIncoming({
+        prompt: fullPrompt,
+        userId: command.user.id,
+        username: command.user.displayName,
+        agent,
+        appId,
+        backendId: selectedBackend,
+        mode: 'opencode',
+      })
   } catch (error) {
     logger.error('[SESSION] Error:', error)
     await command.editReply(

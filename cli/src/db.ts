@@ -199,6 +199,31 @@ async function migrateSchema(prisma: PrismaClient): Promise<void> {
     // Column already exists
   }
 
+  const backendTableStatements = [
+    `CREATE TABLE IF NOT EXISTS "global_backends" (
+      "app_id" TEXT NOT NULL PRIMARY KEY,
+      "backend_id" TEXT NOT NULL,
+      "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "global_backends_app_id_fkey" FOREIGN KEY ("app_id") REFERENCES "bot_tokens" ("app_id") ON DELETE RESTRICT ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS "channel_backends" (
+      "channel_id" TEXT NOT NULL PRIMARY KEY,
+      "backend_id" TEXT NOT NULL,
+      "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "channel_backends_channel_id_fkey" FOREIGN KEY ("channel_id") REFERENCES "channel_directories" ("channel_id") ON DELETE RESTRICT ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS "session_backends" (
+      "session_id" TEXT NOT NULL PRIMARY KEY,
+      "backend_id" TEXT NOT NULL,
+      "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+  ]
+  for (const stmt of backendTableStatements) {
+    await prisma.$executeRawUnsafe(stmt)
+  }
+
   // Migration: move session_thinking data into session_models.variant.
   // session_thinking table is left in place (not dropped) so older kimaki versions
   // that still reference it won't crash on the same database.

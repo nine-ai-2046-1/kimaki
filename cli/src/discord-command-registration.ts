@@ -134,6 +134,47 @@ export async function registerCommands({
 }) {
   const commands = [
     new SlashCommandBuilder()
+      .setName('backend')
+      .setDescription(truncateCommandDescription('List, inspect, or change the coding backend used by this bot'))
+      .addStringOption((option) => {
+        option
+          .setName('action')
+          .setDescription(truncateCommandDescription('What to do'))
+          .setRequired(true)
+          .addChoices(
+            { name: 'list', value: 'list' },
+            { name: 'current', value: 'current' },
+            { name: 'set', value: 'set' },
+          )
+        return option
+      })
+      .addStringOption((option) => {
+        option
+          .setName('backend')
+          .setDescription(truncateCommandDescription('Backend to use'))
+          .setRequired(false)
+          .addChoices(
+            { name: 'OpenCode', value: 'opencode' },
+            { name: 'Codex', value: 'codex' },
+            { name: 'Gemini CLI', value: 'gemini-cli' },
+            { name: 'Kiro CLI', value: 'kiro-cli' },
+          )
+        return option
+      })
+      .addStringOption((option) => {
+        option
+          .setName('scope')
+          .setDescription(truncateCommandDescription('Where to save the backend selection'))
+          .setRequired(false)
+          .addChoices(
+            { name: 'session', value: 'session' },
+            { name: 'machine', value: 'machine' },
+          )
+        return option
+      })
+      .setDMPermission(false)
+      .toJSON(),
+    new SlashCommandBuilder()
       .setName('resume')
       .setDescription(truncateCommandDescription('Resume an existing OpenCode session'))
       .addStringOption((option) => {

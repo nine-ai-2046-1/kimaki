@@ -65,6 +65,7 @@ model bot_tokens {
   api_keys           bot_api_keys?
   forum_sync_configs forum_sync_configs[]
   global_model       global_models?
+  global_backend     global_backends?
 }
 
 enum BotMode {
@@ -81,6 +82,7 @@ model channel_directories {
 
   channel_model        channel_models?
   channel_agent        channel_agents?
+  channel_backend      channel_backends?
   channel_worktree     channel_worktrees?
   channel_verbosity    channel_verbosity?
   channel_mention_mode channel_mention_mode?
@@ -149,6 +151,37 @@ model channel_agents {
 model session_agents {
   session_id String    @id
   agent_name String
+  created_at DateTime? @default(now())
+}
+
+enum BackendId {
+  opencode
+  codex
+  gemini_cli
+  kiro_cli
+}
+
+model global_backends {
+  app_id     String    @id
+  backend_id BackendId
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now()) @updatedAt
+
+  bot bot_tokens @relation(fields: [app_id], references: [app_id])
+}
+
+model channel_backends {
+  channel_id String    @id
+  backend_id BackendId
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now()) @updatedAt
+
+  channel channel_directories @relation(fields: [channel_id], references: [channel_id])
+}
+
+model session_backends {
+  session_id String    @id
+  backend_id BackendId
   created_at DateTime? @default(now())
 }
 

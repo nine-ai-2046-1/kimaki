@@ -38,10 +38,12 @@ import {
 import type { DiscordFileAttachment } from '../message-formatting.js'
 import { formatPart } from '../message-formatting.js'
 import {
+  getBackendCascade,
   getChannelVerbosity,
   getPartMessageIds,
   setPartMessage,
   getThreadSession,
+  setSessionBackend,
   setThreadSession,
   getThreadWorktree,
   setSessionAgent,
@@ -49,6 +51,7 @@ import {
   setSessionStartSource,
   appendSessionEventsSinceLastTimestamp,
   getSessionEventSnapshot,
+  type BackendId,
 } from '../database.js'
 import {
   showPermissionButtons,
@@ -470,6 +473,7 @@ export type IngressInput = {
   repliedMessage?: RepliedMessageContext
   images?: DiscordFileAttachment[]
   appId?: string
+  backendId?: BackendId
   command?: { name: string; arguments: string }
   /**
    * `opencode` (default): send via session.promptAsync and let opencode
@@ -3150,6 +3154,10 @@ export class ThreadSessionRuntime {
    */
   async enqueueIncoming(input: IngressInput): Promise<EnqueueResult> {
     threadState.setSessionUsername(this.threadId, input.username)
+    input = {
+      ...input,
+      backendId: await this.resolveBackendForInput({ input }),
+    }
 
     // When a preprocessor is provided, we must resolve it inside
     // dispatchAction before we know the final mode for routing.
@@ -3240,6 +3248,22 @@ export class ThreadSessionRuntime {
     })
 
     return resultPromise
+  }
+
+  private async resolveBackendForInput({
+    input,
+  }: {
+    input: IngressInput
+  }): Promise<BackendId> {
+    if (input.backendId) {
+      return input.backendId
+    }
+    const backend = await getBackendCascade({
+      sessionId: this.state?.sessionId,
+      channelId: this.channelId,
+      appId: input.appId || this.appId,
+    })
+    return backend || 'opencode'
   }
 
   /**
@@ -3506,6 +3530,10 @@ export class ThreadSessionRuntime {
       return
     }
     const { session, getClient, createdNewSession } = sessionResult
+    await setSessionBackend({
+      sessionId: session.id,
+      backendId: input.backendId || 'opencode',
+    })
 
     // Ensure listener is running now that we have a valid OpenCode client.
     // The eager start in enqueueIncoming may have failed if the client
