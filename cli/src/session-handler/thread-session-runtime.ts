@@ -200,6 +200,7 @@ export function getOrCreateRuntime(
   threadState.ensureThread(opts.threadId) // add to global store
   const runtime = new ThreadSessionRuntime(opts)
   runtimes.set(opts.threadId, runtime)
+  void runtime.hydratePersistedSessionState()
   return runtime
 }
 
@@ -657,6 +658,17 @@ export class ThreadSessionRuntime {
         this.restartTypingKeepalive({ sendNow: true })
       },
     })
+  }
+
+  async hydratePersistedSessionState(): Promise<void> {
+    if (this.state?.sessionId) {
+      return
+    }
+    const persistedSessionId = await getThreadSession(this.threadId)
+    if (!persistedSessionId) {
+      return
+    }
+    threadState.setSessionId(this.threadId, persistedSessionId)
   }
 
   private consumeWorktreePromptChange(
@@ -2853,6 +2865,12 @@ export class ThreadSessionRuntime {
       }
 
       const { session, getClient, createdNewSession } = sessionResult
+      if (!getClient) {
+        await cleanupOnError(
+          `✗ Backend ${input.backendId || 'opencode'} does not support this queue mode yet`,
+        )
+        return
+      }
 
       // If listener startup happened before initializeOpencodeForDirectory(),
       // startEventListener may have exited early with "No OpenCode client".
@@ -3073,6 +3091,7 @@ export class ThreadSessionRuntime {
       username: input.username,
       images: input.images,
       appId: input.appId,
+      backendId: input.backendId,
       command: input.command,
       agent: input.agent,
       model: input.model,
@@ -3215,7 +3234,12 @@ export class ThreadSessionRuntime {
         // Await the enqueue so session state (ensureSession, setThreadSession)
         // is persisted before the next message's preprocessing reads it.
         const enqueueResult =
-          resolvedInput.mode === 'local-queue' || resolvedInput.command
+          resolvedInput.backendId === 'gemini_cli'
+            ? await this.enqueueViaLocalQueue({
+                ...resolvedInput,
+                mode: 'local-queue',
+              })
+            : resolvedInput.mode === 'local-queue' || resolvedInput.command
             ? await this.enqueueViaLocalQueue(resolvedInput)
             : await this.submitViaOpencodeQueue(resolvedInput)
         resolveOuter(enqueueResult)
@@ -3597,6 +3621,17 @@ export class ThreadSessionRuntime {
       return
     }
 
+    if (!getClient) {
+      this.stopTyping()
+      await sendThreadMessage(
+        this.thread,
+        `✗ Backend ${activeBackendId} does not support OpenCode runtime features required by this path.`,
+        { flags: NOTIFY_MESSAGE_FLAGS },
+      )
+      await this.tryDrainQueue({ showIndicator: true })
+      return
+    }
+
     // Ensure listener is running now that we have a valid OpenCode client.
     // The eager start in enqueueIncoming may have failed if the client
     // wasn't initialized yet (fresh thread, first message).
@@ -3974,7 +4009,7 @@ export class ThreadSessionRuntime {
     | Error
     | {
         session: { id: string }
-        getClient: () => OpencodeClient
+        getClient?: () => OpencodeClient
         createdNewSession: boolean
       }
   > {
@@ -4026,10 +4061,9 @@ export class ThreadSessionRuntime {
     const session = { id: ensuredSession.handle.sessionId }
     const createdNewSession = ensuredSession.createdNewSession
     const runtimeAdapter = ensuredSession.runtimeAdapter
-    if (!runtimeAdapter || runtimeAdapter.kind !== 'opencode') {
-      return new Error(`Unsupported runtime adapter for ${backendId}`)
-    }
-    const { getClient } = runtimeAdapter
+    const getClient = runtimeAdapter?.kind === 'opencode'
+      ? runtimeAdapter.getClient
+      : undefined
 
     if (createdNewSession) {
       // Insert DB row immediately so the external-sync poller sees

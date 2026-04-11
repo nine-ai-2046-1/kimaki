@@ -33,6 +33,17 @@ function joinLines({ lines }: { lines: string[] }): string {
   return lines.join('\n')
 }
 
+function buildBackendUsageHint(): string {
+  return joinLines({
+    lines: [
+      'Usage:',
+      '- /backend action:list',
+      '- /backend action:current',
+      '- /backend action:set backend:opencode|gemini-cli|codex|kiro-cli scope:session|machine',
+    ],
+  })
+}
+
 async function replyWithBackendList({
   interaction,
   appId,
@@ -91,11 +102,19 @@ async function setSelectedBackend({
   interaction: ChatInputCommandInteraction
   appId: string
 }): Promise<void> {
-  const backendValue = interaction.options.getString('backend', true)
+  const backendValue = interaction.options.getString('backend')
+  if (!backendValue) {
+    await interaction.editReply(
+      `Missing backend selection.\n${buildBackendUsageHint()}`,
+    )
+    return
+  }
   const scope = interaction.options.getString('scope') || 'session'
   const backendId = parseBackendId({ value: backendValue })
   if (!backendId) {
-    await interaction.editReply(`Unknown backend: ${backendValue}`)
+    await interaction.editReply(
+      `Unknown backend: ${backendValue}\n${buildBackendUsageHint()}`,
+    )
     return
   }
 
@@ -126,11 +145,11 @@ async function setSelectedBackend({
 
   if (scope === 'machine') {
     await setGlobalBackend({ appId, backendId })
-      await interaction.editReply(
+    await interaction.editReply(
       backendId === 'gemini_cli'
         ? 'Machine default backend set to Gemini CLI. Phase 2 Gemini runs in text-mode and does not provide full OpenCode tool/runtime parity.'
         : `Machine default backend set to ${formatBackendLabel({ backendId })}`,
-      )
+    )
     return
   }
 
