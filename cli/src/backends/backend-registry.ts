@@ -6,6 +6,7 @@ import type {
 } from './backend-runner.js'
 import { isBackendExecutor } from './backend-runner.js'
 import { createGeminiCliRunner } from './gemini-cli-runner.js'
+import { createKiroCliRunner } from './kiro-cli-runner.js'
 import { createOpenCodeRunner } from './open-code-runner.js'
 
 type BackendRegistration = {
@@ -76,13 +77,19 @@ export function listBackendRegistrations({
   appId?: string
 } = {}): BackendRegistration[] {
   return backendRegistrations.map((registration) => {
-    if (registration.id !== 'gemini_cli') {
-      return registration
+    if (registration.id === 'gemini_cli') {
+      return {
+        ...registration,
+        runner: createGeminiCliRunner({ appId }),
+      }
     }
-    return {
-      ...registration,
-      runner: createGeminiCliRunner({ appId }),
+    if (registration.id === 'kiro_cli') {
+      return {
+        ...registration,
+        runner: createKiroCliRunner(),
+      }
     }
+    return registration
   })
 }
 

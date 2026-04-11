@@ -19,12 +19,15 @@ export type BackendCapabilities = {
   supportsAbort: boolean
   supportsSessionResume: boolean
   supportsModelSelection: boolean
+  supportsAgentSelection: boolean
   supportsPermissionRequests: boolean
+  supportsToolTrustPolicy: boolean
 }
 
 export type BackendSessionHandle = {
   backendId: BackendId
   sessionId?: string
+  backendSessionId?: string
   projectDirectory: string
   capabilities: BackendCapabilities
 }
@@ -64,6 +67,16 @@ export type BackendPromptRequest = Parameters<
 export type BackendPromptResponse = {
   accepted: boolean
   text?: string
+  backendSessionId?: string
+}
+
+export type BackendListModelsResult = {
+  models: string[]
+  defaultModel?: string
+}
+
+export type BackendListAgentsResult = {
+  agents: string[]
 }
 
 export type BackendSendPromptArgs = {
@@ -79,6 +92,8 @@ export type BackendExecutor = BackendRunner & {
   ensureSession?(args: BackendEnsureSessionArgs): Promise<Error | BackendEnsureSessionResult>
   abortSession?(args: BackendAbortSessionArgs): Promise<void>
   sendPrompt?(args: BackendSendPromptArgs): Promise<Error | BackendPromptResponse>
+  listModels?(): Promise<Error | BackendListModelsResult>
+  listAgents?(args: { projectDirectory: string }): Promise<Error | BackendListAgentsResult>
 }
 
 export function isBackendExecutor(runner: BackendRunner): runner is BackendExecutor {

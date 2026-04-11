@@ -111,7 +111,10 @@ export async function handleSessionCommand({
         agent,
         appId,
         backendId: selectedBackend,
-        mode: selectedBackend === 'gemini_cli' ? 'local-queue' : 'opencode',
+        mode:
+          selectedBackend === 'gemini_cli' || selectedBackend === 'kiro_cli'
+            ? 'local-queue'
+            : 'opencode',
       })
   } catch (error) {
     logger.error('[SESSION] Error:', error)

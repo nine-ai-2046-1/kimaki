@@ -17,7 +17,9 @@ const GEMINI_CAPABILITIES: BackendCapabilities = {
   supportsAbort: false,
   supportsSessionResume: false,
   supportsModelSelection: false,
+  supportsAgentSelection: false,
   supportsPermissionRequests: false,
+  supportsToolTrustPolicy: false,
 }
 
 function escapeShellArg(value: string): string {

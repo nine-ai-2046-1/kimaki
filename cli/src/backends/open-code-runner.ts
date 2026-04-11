@@ -23,7 +23,9 @@ const OPENCODE_CAPABILITIES: BackendCapabilities = {
   supportsAbort: true,
   supportsSessionResume: true,
   supportsModelSelection: true,
+  supportsAgentSelection: true,
   supportsPermissionRequests: true,
+  supportsToolTrustPolicy: true,
 }
 
 export function createOpenCodeRunner(): BackendExecutor {

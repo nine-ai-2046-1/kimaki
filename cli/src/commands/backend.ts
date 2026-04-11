@@ -57,6 +57,9 @@ async function replyWithBackendList({
       if (item.backendId === 'gemini_cli') {
         return `- ${item.label}: available (text-mode backend)`
       }
+      if (item.backendId === 'kiro_cli') {
+        return `- ${item.label}: available (rich CLI backend)`
+      }
       return `- ${item.label}: available`
     }
     return `- ${item.label}: unavailable (${item.reason || 'unknown reason'})`
@@ -132,6 +135,8 @@ async function setSelectedBackend({
     await interaction.editReply(
       backendId === 'gemini_cli'
         ? `${formatBackendLabel({ backendId })} is unavailable: ${availability.message}\nSet a Gemini API key with /transcription-key or GEMINI_API_KEY, then try again.`
+        : backendId === 'kiro_cli'
+        ? `${formatBackendLabel({ backendId })} is unavailable: ${availability.message}\nRun \`kiro-cli login\` and make sure your Kiro CLI session is active, then try again.`
         : `${formatBackendLabel({ backendId })} is unavailable: ${availability.message}`,
     )
     return
@@ -148,6 +153,8 @@ async function setSelectedBackend({
     await interaction.editReply(
       backendId === 'gemini_cli'
         ? 'Machine default backend set to Gemini CLI. Phase 2 Gemini runs in text-mode and does not provide full OpenCode tool/runtime parity.'
+        : backendId === 'kiro_cli'
+        ? 'Machine default backend set to Kiro CLI. Kiro is treated as a rich CLI backend, but the current implementation still uses the phase 1 Discord text reply path.'
         : `Machine default backend set to ${formatBackendLabel({ backendId })}`,
     )
     return
@@ -170,6 +177,8 @@ async function setSelectedBackend({
   await interaction.editReply(
     backendId === 'gemini_cli'
       ? 'Session backend set to Gemini CLI. Phase 2 Gemini runs in text-mode and does not provide full OpenCode tool/runtime parity.'
+      : backendId === 'kiro_cli'
+      ? 'Session backend set to Kiro CLI. Kiro is treated as a rich CLI backend, but the current implementation still uses the phase 1 Discord text reply path.'
       : `Session backend set to ${formatBackendLabel({ backendId })}`,
   )
 }

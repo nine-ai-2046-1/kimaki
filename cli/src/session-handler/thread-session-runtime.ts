@@ -158,6 +158,10 @@ const shouldLogSessionEvents =
 
 const runtimes = new Map<string, ThreadSessionRuntime>()
 
+function isTextModeCliBackend(backendId: BackendId): boolean {
+  return backendId === 'gemini_cli' || backendId === 'kiro_cli'
+}
+
 subscribeOpencodeServerLifecycle((event) => {
   if (event.type !== 'started') {
     return
@@ -3160,7 +3164,7 @@ export class ThreadSessionRuntime {
     // plain text. Covers Discord chat messages, /new-session, /queue, CLI
     // `kimaki send --prompt`, and scheduled tasks — all funnel through here.
     input = maybeConvertLeadingCommand(input)
-    if (input.backendId === 'gemini_cli' && input.mode !== 'local-queue') {
+    if (input.backendId && isTextModeCliBackend(input.backendId) && input.mode !== 'local-queue') {
       return this.enqueueViaLocalQueue({
         ...input,
         mode: 'local-queue',
@@ -3234,7 +3238,7 @@ export class ThreadSessionRuntime {
         // Await the enqueue so session state (ensureSession, setThreadSession)
         // is persisted before the next message's preprocessing reads it.
         const enqueueResult =
-          resolvedInput.backendId === 'gemini_cli'
+          resolvedInput.backendId && isTextModeCliBackend(resolvedInput.backendId)
             ? await this.enqueueViaLocalQueue({
                 ...resolvedInput,
                 mode: 'local-queue',
@@ -3584,7 +3588,7 @@ export class ThreadSessionRuntime {
       backendId: activeBackendId,
     })
 
-    if (activeBackendId === 'gemini_cli') {
+    if (isTextModeCliBackend(activeBackendId)) {
       const transcript = await this.buildGeminiThreadTranscript()
       const promptResponse = await this.sendPromptViaBackendExecutor({
         backendId: activeBackendId,
@@ -3604,9 +3608,10 @@ export class ThreadSessionRuntime {
       })
       this.stopTyping()
       if (promptResponse instanceof Error) {
-        logger.error(`[DISPATCH] Gemini CLI call failed: ${promptResponse.message}`)
-        void notifyError(promptResponse, 'Gemini CLI error during local queue prompt')
-        await sendThreadMessage(this.thread, `✗ Gemini CLI error: ${promptResponse.message}`, {
+        logger.error(`[DISPATCH] ${activeBackendId} call failed: ${promptResponse.message}`)
+        void notifyError(promptResponse, `${activeBackendId} error during local queue prompt`)
+        const backendLabel = activeBackendId === 'gemini_cli' ? 'Gemini CLI' : 'Kiro CLI'
+        await sendThreadMessage(this.thread, `✗ ${backendLabel} error: ${promptResponse.message}`, {
           flags: NOTIFY_MESSAGE_FLAGS,
         })
         await this.dispatchAction(() => {
@@ -3614,7 +3619,10 @@ export class ThreadSessionRuntime {
         })
         return
       }
-      const responseText = promptResponse.text?.trim() || 'Gemini returned no output.'
+      const responseText = promptResponse.text?.trim()
+        || (activeBackendId === 'gemini_cli'
+          ? 'Gemini returned no output.'
+          : 'Kiro returned no output.')
       await sendThreadMessage(this.thread, `⬥ ${responseText}`, {
         flags: NOTIFY_MESSAGE_FLAGS,
       })

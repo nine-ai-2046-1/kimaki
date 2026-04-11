@@ -22,13 +22,18 @@ describe('backend registry', () => {
     })
   })
 
-  test('returns an executor for gemini cli and keeps placeholders undefined', () => {
+  test('returns executors for gemini cli and kiro cli and keeps placeholders undefined', () => {
     const geminiExecutor = getBackendExecutor({ backendId: 'gemini_cli' })
     expect(geminiExecutor).toBeDefined()
     expect(geminiExecutor?.id).toBe('gemini_cli')
     expect(geminiExecutor?.capabilities.supportsStreaming).toBe(false)
 
+    const kiroExecutor = getBackendExecutor({ backendId: 'kiro_cli' })
+    expect(kiroExecutor).toBeDefined()
+    expect(kiroExecutor?.id).toBe('kiro_cli')
+    expect(kiroExecutor?.capabilities.supportsSessionResume).toBe(true)
+    expect(kiroExecutor?.capabilities.supportsAgentSelection).toBe(true)
+
     expect(getBackendExecutor({ backendId: 'codex' })).toBeUndefined()
-    expect(getBackendExecutor({ backendId: 'kiro_cli' })).toBeUndefined()
   })
 })
