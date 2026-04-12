@@ -37,6 +37,7 @@ import {
   getBackendCascade,
   getChannelVerbosity,
   getPartMessageIds,
+  getSessionBackendMetadata,
   setPartMessage,
   getThreadSession,
   setSessionBackend,
@@ -444,6 +445,10 @@ export type EnqueueResult = {
   queued: boolean
   /** Queue position (1-based). Only set when queued is true. */
   position?: number
+  /**
+   * Whether callers should surface a queue-position acknowledgement message.
+   */
+  showQueuePosition?: boolean
 }
 
 /**
@@ -3088,7 +3093,9 @@ export class ThreadSessionRuntime {
    * Enqueue in kimaki's local per-thread queue.
    * Used for explicit queue workflows (/queue, queueMessage=true).
    */
-  private async enqueueViaLocalQueue(input: IngressInput): Promise<EnqueueResult> {
+  private async enqueueViaLocalQueue(
+    input: IngressInput & { showQueuePosition?: boolean },
+  ): Promise<EnqueueResult> {
     const queuedMessage: QueuedMessage = {
       prompt: input.prompt,
       userId: input.userId,
@@ -3124,7 +3131,11 @@ export class ThreadSessionRuntime {
         )
         : false
       result = !willDrainNow && position > 0
-        ? { queued: true, position }
+        ? {
+          queued: true,
+          position,
+          showQueuePosition: input.showQueuePosition ?? false,
+        }
         : { queued: false }
 
       // Ensure listener is running
@@ -3168,14 +3179,21 @@ export class ThreadSessionRuntime {
       return this.enqueueViaLocalQueue({
         ...input,
         mode: 'local-queue',
+        showQueuePosition: false,
       })
     }
     if (input.mode === 'local-queue') {
-      return this.enqueueViaLocalQueue(input)
+      return this.enqueueViaLocalQueue({
+        ...input,
+        showQueuePosition: true,
+      })
     }
     if (input.command) {
       // Commands keep using local queue so they still support /queue-command.
-      return this.enqueueViaLocalQueue(input)
+      return this.enqueueViaLocalQueue({
+        ...input,
+        showQueuePosition: true,
+      })
     }
     return this.submitViaOpencodeQueue(input)
   }
@@ -3237,15 +3255,23 @@ export class ThreadSessionRuntime {
         // Route with the resolved mode through normal paths.
         // Await the enqueue so session state (ensureSession, setThreadSession)
         // is persisted before the next message's preprocessing reads it.
-        const enqueueResult =
-          resolvedInput.backendId && isTextModeCliBackend(resolvedInput.backendId)
+        const enqueueResult = resolvedInput.command
+          ? await this.enqueueViaLocalQueue({
+            ...resolvedInput,
+            showQueuePosition: true,
+          })
+          : resolvedInput.mode === 'local-queue'
             ? await this.enqueueViaLocalQueue({
+              ...resolvedInput,
+              showQueuePosition: true,
+            })
+            : resolvedInput.backendId && isTextModeCliBackend(resolvedInput.backendId)
+              ? await this.enqueueViaLocalQueue({
                 ...resolvedInput,
                 mode: 'local-queue',
+                showQueuePosition: false,
               })
-            : resolvedInput.mode === 'local-queue' || resolvedInput.command
-            ? await this.enqueueViaLocalQueue(resolvedInput)
-            : await this.submitViaOpencodeQueue(resolvedInput)
+              : await this.submitViaOpencodeQueue(resolvedInput)
         resolveOuter(enqueueResult)
       } catch (err) {
         rejectOuter(err)
@@ -3538,17 +3564,24 @@ export class ThreadSessionRuntime {
     if (dispatchSessionId) {
       this.markQueueDispatchBusy(dispatchSessionId)
     }
-    void this.dispatchPrompt(next).catch(async (err) => {
-      logger.error('[DISPATCH] Prompt dispatch failed:', err)
-      void notifyError(err, 'Runtime prompt dispatch failed')
-      if (dispatchSessionId) {
-        this.markQueueDispatchIdle(dispatchSessionId)
-      }
-    }).finally(() => {
-      void this.dispatchAction(() => {
-        return this.tryDrainQueue({ showIndicator: true })
+    void this.dispatchPrompt(next)
+      .then(async () => {
+        if (dispatchSessionId && isTextModeCliBackend(next.backendId || 'opencode')) {
+          this.markQueueDispatchIdle(dispatchSessionId)
+        }
       })
-    })
+      .catch(async (err) => {
+        logger.error('[DISPATCH] Prompt dispatch failed:', err)
+        void notifyError(err, 'Runtime prompt dispatch failed')
+        if (dispatchSessionId) {
+          this.markQueueDispatchIdle(dispatchSessionId)
+        }
+      })
+      .finally(() => {
+        void this.dispatchAction(() => {
+          return this.tryDrainQueue({ showIndicator: true })
+        })
+      })
   }
 
   // ── Prompt Dispatch ─────────────────────────────────────────
@@ -3586,6 +3619,7 @@ export class ThreadSessionRuntime {
     await setSessionBackend({
       sessionId: session.id,
       backendId: activeBackendId,
+      backendSessionId: session.backendSessionId,
     })
 
     if (isTextModeCliBackend(activeBackendId)) {
@@ -4016,7 +4050,7 @@ export class ThreadSessionRuntime {
   }): Promise<
     | Error
     | {
-        session: { id: string }
+        session: { id: string; backendSessionId?: string }
         getClient?: () => OpencodeClient
         createdNewSession: boolean
       }
@@ -4048,6 +4082,9 @@ export class ThreadSessionRuntime {
       // Fallback to DB
       sessionId = await getThreadSession(this.thread.id) || undefined
     }
+    const backendMetadata = sessionId
+      ? await getSessionBackendMetadata(sessionId)
+      : undefined
 
     const ensuredSession = await backendExecutor.ensureSession?.({
       threadId: this.thread.id,
@@ -4055,6 +4092,7 @@ export class ThreadSessionRuntime {
       sdkDirectory: this.sdkDirectory,
       channelId: this.channelId,
       existingSessionId: sessionId,
+      existingBackendSessionId: backendMetadata?.backendSessionId,
       originalRepoDirectory,
       permissions,
       injectionGuardPatterns,
@@ -4066,7 +4104,10 @@ export class ThreadSessionRuntime {
       return ensuredSession
     }
 
-    const session = { id: ensuredSession.handle.sessionId }
+    const session = {
+      id: ensuredSession.handle.sessionId,
+      backendSessionId: ensuredSession.handle.backendSessionId,
+    }
     const createdNewSession = ensuredSession.createdNewSession
     const runtimeAdapter = ensuredSession.runtimeAdapter
     const getClient = runtimeAdapter?.kind === 'opencode'

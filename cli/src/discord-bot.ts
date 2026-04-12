@@ -705,7 +705,11 @@ export async function startDiscordBot({
         })
 
         // Notify when a voice message was queued instead of sent immediately
-        if (enqueueResult.queued && enqueueResult.position) {
+        if (
+          enqueueResult.queued
+          && enqueueResult.position
+          && enqueueResult.showQueuePosition
+        ) {
           await sendThreadMessage(thread, `Queued at position ${enqueueResult.position}`)
         }
       }
