@@ -30,4 +30,22 @@ describe('kiro cli runner', () => {
       supportsToolTrustPolicy: true,
     })
   })
+
+  test('reuses existing backend session id when ensuring session', async () => {
+    const runner = createKiroCliRunner()
+    const result = await runner.ensureSession?.({
+      threadId: 'thread-1',
+      projectDirectory: '/tmp/project',
+      sdkDirectory: '/tmp/project',
+      existingSessionId: 'kimaki-session-1',
+      existingBackendSessionId: 'kiro-native-123',
+    })
+
+    if (result instanceof Error || !result) {
+      throw new Error('Expected ensureSession result for Kiro runner')
+    }
+
+    expect(result.handle.backendSessionId).toBe('kiro-native-123')
+    expect(result.handle.sessionId).toBe('kimaki-session-1')
+  })
 })

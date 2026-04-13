@@ -95,6 +95,11 @@ import { handleRunCommand } from './commands/run-command.js'
 import { handleContextUsageCommand } from './commands/context-usage.js'
 import { handleSessionIdCommand } from './commands/session-id.js'
 import { handleBackendCommand } from './commands/backend.js'
+import {
+  handleSessionGithubCommand,
+  handleSessionGithubIdentityModalSubmit,
+  handleSessionGithubTokenModalSubmit,
+} from './commands/session-github.js'
 
 import { handleUpgradeAndRestartCommand } from './commands/upgrade.js'
 import { handleMcpCommand, handleMcpSelectMenu } from './commands/mcp.js'
@@ -193,6 +198,10 @@ export function registerInteractionHandler({
 
             case 'backend':
               await handleBackendCommand({ command: interaction, appId })
+              return
+
+            case 'session-github':
+              await handleSessionGithubCommand({ interaction, appId })
               return
 
             case 'new-worktree':
@@ -548,6 +557,16 @@ export function registerInteractionHandler({
 
           if (customId.startsWith('file_upload_modal:')) {
             await handleFileUploadModalSubmit(interaction)
+            return
+          }
+
+          if (customId.startsWith('session_github_token_modal:')) {
+            await handleSessionGithubTokenModalSubmit(interaction)
+            return
+          }
+
+          if (customId.startsWith('session_github_identity_modal:')) {
+            await handleSessionGithubIdentityModalSubmit(interaction)
             return
           }
           return

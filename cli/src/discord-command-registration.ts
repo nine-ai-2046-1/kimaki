@@ -529,6 +529,24 @@ export async function registerCommands({
       .setDescription(truncateCommandDescription('Stop screen sharing'))
       .setDMPermission(false)
       .toJSON(),
+    new SlashCommandBuilder()
+      .setName('session-github')
+      .setDescription(truncateCommandDescription('Manage per-session GitHub token and git identity for this thread'))
+      .addStringOption((option) => {
+        option
+          .setName('action')
+          .setDescription(truncateCommandDescription('What to do'))
+          .setRequired(true)
+          .addChoices(
+            { name: 'current', value: 'current' },
+            { name: 'set-token', value: 'set-token' },
+            { name: 'set-identity', value: 'set-identity' },
+          )
+
+        return option
+      })
+      .setDMPermission(false)
+      .toJSON(),
   ]
 
   // Dynamic commands are registered in priority order: agents → user commands → skills → MCP prompts.

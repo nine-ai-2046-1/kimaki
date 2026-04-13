@@ -43,6 +43,7 @@ export type BackendEnsureSessionArgs = {
   sdkDirectory: string
   channelId?: string
   existingSessionId?: string
+  existingBackendSessionId?: string
   originalRepoDirectory?: string
   permissions?: string[]
   injectionGuardPatterns?: string[]

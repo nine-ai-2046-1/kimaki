@@ -102,16 +102,19 @@ export function createKiroCliRunner(): BackendExecutor {
       threadId,
       projectDirectory,
       existingSessionId,
+      existingBackendSessionId,
     }: BackendEnsureSessionArgs): Promise<Error | BackendEnsureSessionResult> {
-      const availability = await this.isAvailable()
-      if (!availability.available) {
-        return new Error(availability.reason || 'Kiro CLI is unavailable')
+      if (!existingSessionId && !existingBackendSessionId) {
+        const availability = await this.isAvailable()
+        if (!availability.available) {
+          return new Error(availability.reason || 'Kiro CLI is unavailable')
+        }
       }
       return {
         handle: {
           backendId: 'kiro_cli',
           sessionId: existingSessionId || `kiro:${threadId}`,
-          backendSessionId: existingSessionId || `kiro:${threadId}`,
+          backendSessionId: existingBackendSessionId || existingSessionId || `kiro:${threadId}`,
           projectDirectory,
           capabilities: KIRO_CAPABILITIES,
         },

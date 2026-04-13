@@ -793,18 +793,49 @@ export async function getSessionBackend(
   return row?.backend_id
 }
 
+export async function getSessionBackendMetadata(
+  sessionId: string,
+): Promise<
+  | {
+      backendId: BackendId
+      backendSessionId?: string
+    }
+  | undefined
+> {
+  const prisma = await getPrisma()
+  const row = await prisma.session_backends.findUnique({
+    where: { session_id: sessionId },
+  })
+  if (!row) {
+    return undefined
+  }
+  return {
+    backendId: row.backend_id,
+    backendSessionId: row.backend_session_id || undefined,
+  }
+}
+
 export async function setSessionBackend({
   sessionId,
   backendId,
+  backendSessionId,
 }: {
   sessionId: string
   backendId: BackendId
+  backendSessionId?: string
 }): Promise<void> {
   const prisma = await getPrisma()
   await prisma.session_backends.upsert({
     where: { session_id: sessionId },
-    create: { session_id: sessionId, backend_id: backendId },
-    update: { backend_id: backendId },
+    create: {
+      session_id: sessionId,
+      backend_id: backendId,
+      backend_session_id: backendSessionId,
+    },
+    update: {
+      backend_id: backendId,
+      backend_session_id: backendSessionId,
+    },
   })
 }
 
@@ -861,6 +892,57 @@ export async function getBackendCascade({
     }
   }
   return undefined
+}
+
+export async function getSessionGithubCredentials(sessionId: string): Promise<
+  | {
+      githubToken?: string
+      gitUserName?: string
+      gitUserEmail?: string
+    }
+  | undefined
+> {
+  const prisma = await getPrisma()
+  const row = await prisma['session_github_credentials'].findUnique({
+    where: { session_id: sessionId },
+  })
+  if (!row) {
+    return undefined
+  }
+  return {
+    githubToken: row.github_token || undefined,
+    gitUserName: row.git_user_name || undefined,
+    gitUserEmail: row.git_user_email || undefined,
+  }
+}
+
+export async function setSessionGithubCredentials({
+  sessionId,
+  githubToken,
+  gitUserName,
+  gitUserEmail,
+}: {
+  sessionId: string
+  githubToken?: string
+  gitUserName?: string
+  gitUserEmail?: string
+}): Promise<void> {
+  const prisma = await getPrisma()
+  await prisma['session_github_credentials'].upsert({
+    where: { session_id: sessionId },
+    create: {
+      session_id: sessionId,
+      github_token: githubToken,
+      git_user_name: gitUserName,
+      git_user_email: gitUserEmail,
+    },
+    update: {
+      github_token: githubToken,
+      git_user_name: gitUserName,
+      git_user_email: gitUserEmail,
+      updated_at: new Date(),
+    },
+  })
 }
 
 // ============================================================================

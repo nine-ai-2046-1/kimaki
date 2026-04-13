@@ -99,7 +99,16 @@ CREATE TABLE IF NOT EXISTS "channel_backends" (
 CREATE TABLE IF NOT EXISTS "session_backends" (
     "session_id" TEXT NOT NULL PRIMARY KEY,
     "backend_id" TEXT NOT NULL,
+    "backend_session_id" TEXT,
     "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "session_github_credentials" (
+    "session_id" TEXT NOT NULL PRIMARY KEY,
+    "github_token" TEXT,
+    "git_user_name" TEXT,
+    "git_user_email" TEXT,
+    "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS "channel_worktrees" (
     "channel_id" TEXT NOT NULL PRIMARY KEY,

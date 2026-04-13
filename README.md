@@ -1,140 +1,233 @@
 <div align='center'>
     <br/>
     <br/>
-    <h3>kimaki</h3>
-    <p>Iron Man's Jarvis for coding agents, inside Discord</p>
+    <h3>kimaki 🤖</h3>
+    <p>Iron Man 嘅 Jarvis，專為 coding agent 設計，住喺 Discord 入面</p>
     <br/>
     <br/>
 </div>
 
-Kimaki is a Discord bot that lets you control [OpenCode](https://opencode.ai) coding sessions from Discord. Send a message in a Discord channel, an AI agent edits code on your machine.
+Kimaki 係一個 Discord bot，讓你直接用 Discord 控制 coding 任務。📨 喺 Discord 頻道發一條訊息，AI agent 就幫你喺本機改 code。
 
-## Quick Start
+> **⚠️ Fork 版本提示**：呢個係 Kimaki 嘅 self-host fork，支援多個 coding backend（OpenCode、Gemini CLI、Kiro CLI）同埋無需 shared gateway 嘅自托管模式。Fork repo：[nine-ai-2046-1/kimaki](https://github.com/nine-ai-2046-1/kimaki)。原版請見 [上游 repo](https://github.com/OpenAgentPlatform/kimaki)。
+
+---
+
+## 🚀 快速開始
 
 ```bash
-npx -y kimaki@latest
+# 1️⃣ Clone 呢個 repo
+git clone https://github.com/nine-ai-2046-1/kimaki.git
+cd kimaki-fork
+
+# 2️⃣ 安裝依賴
+pnpm install
+
+# 3️⃣ Build CLI
+cd cli && pnpm build && cd ..
+
+# 4️⃣ 啟動 bot
+node cli/bin.js
 ```
 
-The CLI walks you through everything. Setup takes about 1 minute — you install the Kimaki bot to your Discord server with one click, pick your projects, and you're done.
+首次啟動時，CLI 會引導你完成互動式設定。你只需安裝 bot 入你嘅 Discord server，揀定 project，就搞掂。
 
-## What is Kimaki?
+---
 
-Kimaki connects Discord to [OpenCode](https://opencode.ai), a coding agent similar to Claude Code. Each Discord channel is linked to a project directory on your machine. When you send a message in that channel, Kimaki creates a thread and starts an OpenCode session that can:
+## 🤔 Kimaki 係咩？
 
-- Read and edit files
-- Run terminal commands
-- Search your codebase
-- Use any tools you've configured
+Kimaki 將 Discord 接駁到 [OpenCode](https://opencode.ai)，一個類似 Claude Code 嘅 coding agent。每個 Discord 頻道對應你本機上一個 project 目錄。你喺頻道發訊息，Kimaki 就開一條 thread，並啟動 coding session，可以：
 
-Think of it as texting your codebase. You describe what you want, the AI does it.
+- 📖 讀寫檔案
+- 💻 執行 terminal 指令
+- 🔍 搜索你嘅 codebase
+- 🔧 使用任何你已配置嘅工具
+
+想像你係在「發短訊畀自己個 codebase」。你說你想點，AI 就去做。
 
 ```
 ┌─────────────┐         ┌─────────────────────────────────────────┐
-│   Discord   │         │  Your Machine                           │
+│   Discord   │         │  你嘅機器                               │
 │             │         │                                         │
-│  You send a │─────────▶  Kimaki CLI ──▶ OpenCode Server ──▶ AI  │
-│  message in │         │                    │                    │
-│  a channel  │◀────────│     responses      ▼                    │
-│             │         │              Reads, edits, and          │
-└─────────────┘         │              runs commands in           │
-                        │              your project directory     │
+│  你喺頻道   │─────────▶  Kimaki CLI ──▶ Backend Runner ──▶ AI   │
+│  發訊息     │         │                    │                    │
+│             │◀────────│     回覆訊息        ▼                    │
+│             │         │              讀、改、執行指令             │
+└─────────────┘         │              喺你嘅 project 目錄        │
                         └─────────────────────────────────────────┘
 ```
 
-## Setup
+---
 
-Run the CLI and follow the interactive prompts:
+## ⚙️ 設定
+
+執行 CLI 並跟隨互動提示：
 
 ```bash
 npx -y kimaki@latest
 ```
 
-The setup wizard gives you two options:
+設定精靈提供兩個選項：
 
-- **Gateway mode (default)** — Uses Kimaki's pre-built Discord bot. No Discord Developer Portal setup needed. You click one install link, authorize the bot in your server, and you're running. This is the recommended path.
-- **Self-hosted mode** — You create your own Discord bot at [discord.com/developers](https://discord.com/developers/applications). Takes 5-10 minutes. Useful if you want full control over the bot identity.
+- **Gateway 模式（預設）** — 使用 Kimaki 預建嘅 Discord bot。唔需要去 Discord Developer Portal 設定。你點一個安裝連結，授權 bot 入你嘅 server，就可以運作。係推薦路線。
+- **自托管模式（Self-Host）** ✨ — 你自己喺 [discord.com/developers](https://discord.com/developers/applications) 建立 Discord bot。需時 5-10 分鐘。如果你想完全控制 bot 身份，或者唔依賴 shared gateway，用呢個模式。
 
-Both modes work identically after setup. Keep the CLI running — it's the bridge between Discord and your machine.
+兩種模式設定完後行為完全一樣。保持 CLI 運行 — 佢係 Discord 同你機器之間嘅橋樑。
 
-## Features
+### 🏠 Self-Host 模式設定
 
-**Text messages** — Send any message in a channel linked to a project. Kimaki creates a thread and starts an OpenCode session.
+如果你想完全自托管（唔依賴 Kimaki gateway），可以直接用 `.env` 設定：
 
-**File attachments** — Attach images, code files, or any other files to your message. Kimaki includes them in the session context.
+```bash
+DISCORD_BOT_TOKEN=你嘅bot_token
+DEFAULT_BACKEND=opencode
+ENABLED_BACKENDS=opencode,gemini-cli,kiro-cli
+PROJECT_ROOTS=/Users/you/projects
+DATA_DIR=
+```
 
-**Voice messages** — Record a voice message in Discord. Kimaki transcribes it using Google's Gemini API and processes it as text. The transcription uses your project's file tree for accuracy, recognizing function names and file paths you mention. Requires a Gemini API key (prompted during setup).
+然後直接跑：
 
-**Session management** — Resume sessions where you left off, fork from any message, or generate public URLs to share your session.
+```bash
+kimaki-selfhost
+```
 
-**Message queue** — Use `/queue <message>` to queue a follow-up while the AI is still responding. It sends automatically when the current response finishes. You can also end any message with `. queue` for the same behavior.
+> 詳情見 [self-host binary runbook](docs/roadmaps/self-host-binary-runbook-and-env-spec.md)
 
-**Memory** — Kimaki reads a `MEMORY.md` file from your project root at session start. The AI can update this file to store learnings, decisions, and context worth preserving across sessions.
+---
 
-**Tool permissions** — When the AI tries to run something that needs approval (like shell commands or accessing files outside the project), Kimaki shows Accept / Accept Always / Deny buttons in the thread. Customize defaults in your project's `opencode.json`. See [OpenCode Permissions docs](https://opencode.ai/docs/permissions/).
+## ✨ 功能
 
-## Commands
+**💬 文字訊息** — 喺任何連結了 project 嘅頻道發訊息。Kimaki 建立 thread 並啟動 coding session。
 
-### Slash Commands
+**📎 檔案附件** — 附上圖片、code 檔案或任何其他檔案。Kimaki 會將它們加入 session context 一齊處理。
 
-| Command | Description |
+**🎤 語音訊息** — 喺 Discord 錄音。Kimaki 用 Google Gemini API 轉錄，並以文字方式處理。轉錄時會利用你 project 的檔案結構提升準確度，識別函數名同檔案路徑。需要 Gemini API key（設定時會提示）。
+
+**📋 Session 管理** — 繼續未完成嘅 session、從任何訊息 fork，或生成公開 URL 分享你嘅 session。
+
+**⏳ 訊息佇列** — 用 `/queue <message>` 在 AI 回覆時預先排隊下一條訊息。當前回覆完成後自動發送。你亦可以在訊息末尾加 `. queue` 達到同樣效果。
+
+**🧠 記憶** — Kimaki 在 session 開始時讀取 project 根目錄的 `MEMORY.md`。AI 可以更新呢個檔案，保存跨 session 嘅學習、決定同上下文。
+
+**🛡️ 工具權限** — 當 AI 嘗試執行需要審批的操作（例如 shell 指令或存取 project 外部的檔案），Kimaki 喺 thread 顯示接受 / 永遠接受 / 拒絕按鈕。可在 `opencode.json` 中自訂預設值。參見 [OpenCode 權限文件](https://opencode.ai/docs/permissions/)。
+
+**🔌 多 Backend 支援** ✨ — 唔只係 OpenCode！你可以切換去 Gemini CLI 或 Kiro CLI 作為 coding backend。詳見下方「Backend 選擇」章節。
+
+---
+
+## 🔌 Backend 選擇
+
+呢個 fork 支援多個 coding backend。你可以用 `/backend` 指令查看、切換：
+
+### 支援的 Backend
+
+| Backend | 狀態 | 描述 |
+|---|---|---|
+| `opencode` | ✅ 完整支援 | 主 backend，完整 coding runtime |
+| `gemini-cli` | ✅ Text-mode | Gemini CLI，文字模式 backend（Phase 2 已實作） |
+| `kiro-cli` | ✅ Phase 1 | Kiro CLI，rich backend（Phase 1 Discord routing 已接入） |
+| `codex` | 🚧 計劃中 | Codex backend（架構已預留） |
+
+### 使用方法
+
+```
+/backend list          # 列出本機所有 backend 及可用狀態
+/backend current       # 查看當前 session 用緊邊個 backend
+/backend set opencode  # 切換去 OpenCode
+/backend set gemini-cli  # 切換去 Gemini CLI（text-mode）
+/backend set kiro-cli  # 切換去 Kiro CLI
+```
+
+> **注意**：Gemini CLI 係 text-mode backend，唔提供 OpenCode 嘅完整 tool/runtime parity。Kiro CLI 目前係 Phase 1 Discord routing，更豐富嘅 session/model/agent 整合仍在開發中。
+
+### Gemini CLI 設定
+
+設置 Gemini API key（二選一）：
+
+**方案 A（推薦）**：用 Discord 指令儲存：
+```
+/transcription-key
+```
+輸入 key 後儲存喺本機 SQLite，作為 Gemini CLI backend 同語音轉錄嘅 key source。
+
+**方案 B**：設環境變數：
+```bash
+GEMINI_API_KEY=你的key
+```
+
+---
+
+## 📋 指令
+
+### Slash 指令
+
+| 指令 | 說明 |
 |---|---|
-| `/session <prompt>` | Start a new session with an initial prompt |
-| `/resume <session>` | Resume a previous session (with autocomplete) |
-| `/abort` | Stop the current running session |
-| `/add-project <project>` | Create channels for an existing OpenCode project |
-| `/create-new-project <name>` | Create a new project folder and start a session |
-| `/new-worktree <name>` | Create a git worktree and start a session |
-| `/merge-worktree` | Merge worktree branch into default branch |
-| `/model` | Change the AI model for this channel or session |
-| `/agent` | Change the agent for this channel or session |
-| `/share` | Generate a public URL to share the current session |
-| `/fork` | Fork the session from a previous message |
-| `/queue <message>` | Queue a message to send after current response finishes |
-| `/clear-queue` | Clear all queued messages in this thread |
-| `/undo` | Undo the last assistant message (revert file changes) |
-| `/redo` | Redo the last undone message |
-| `/screenshare` | Share your screen via VNC tunnel (auto-stops after 1h) |
-| `/screenshare-stop` | Stop screen sharing |
-| `/upgrade-and-restart` | Upgrade kimaki to latest and restart the bot |
+| `/session <prompt>` | 用初始提示開一個新 session |
+| `/resume <session>` | 繼續之前的 session（支援自動完成） |
+| `/abort` | 停止當前運行中的 session |
+| `/add-project <project>` | 為現有 OpenCode project 建立頻道 |
+| `/create-new-project <name>` | 建立新 project 資料夾並開始 session |
+| `/new-worktree <name>` | 建立 git worktree 並開始 session |
+| `/merge-worktree` | 將 worktree branch merge 入預設 branch |
+| `/model` | 更改此頻道或 session 的 AI 模型 |
+| `/agent` | 更改此頻道或 session 的 agent |
+| `/share` | 生成公開 URL 分享當前 session |
+| `/fork` | 從某條訊息 fork session |
+| `/queue <message>` | 排隊一條訊息，等當前回覆完成後自動發送 |
+| `/clear-queue` | 清除此 thread 所有排隊訊息 |
+| `/undo` | 撤銷上一條 assistant 訊息（還原檔案改動） |
+| `/redo` | 重做上次撤銷的訊息 |
+| `/screenshare` | 透過 VNC tunnel 分享螢幕（1小時後自動停止） |
+| `/screenshare-stop` | 停止螢幕分享 |
+| `/upgrade-and-restart` | 升級 kimaki 至最新版本並重啟 bot |
+| `/backend list` | 列出本機所有 backend 及可用狀態 ✨ |
+| `/backend current` | 查看當前使用中的 backend ✨ |
+| `/backend set <backend>` | 切換 backend ✨ |
 
-Kimaki also registers project-specific slash commands from OpenCode: commands become `/name-cmd`, skills become `/name-skill`, and MCP prompts become `/name-cmd`.
+Kimaki 亦會從 OpenCode 註冊 project 專屬的 slash 指令：指令變成 `/name-cmd`，skill 變成 `/name-skill`，MCP prompt 變成 `/name-cmd`。
 
 ### CLI
 
 ```bash
-# Start the bot (interactive setup on first run)
+# 啟動 bot（首次運行時有互動式設定）
 npx -y kimaki@latest
 
-# Add a project directory as a Discord channel
+# 將 project 目錄加為 Discord 頻道
 npx -y kimaki project add [directory]
 
-# Start a session programmatically
-npx -y kimaki send --channel <channel-id> --prompt "your prompt"
+# 程式化啟動 session
+npx -y kimaki send --channel <channel-id> --prompt "你的提示"
 
-# Upgrade kimaki and restart
+# 升級 kimaki 並重啟
 npx -y kimaki upgrade
 ```
 
-See [CI & Automation docs](docs/ci-automation.md) for the full `send` command reference, GitHub Actions examples, and scheduled tasks.
+詳見 [CI & 自動化文件](docs/ci-automation.md)，包括完整 `send` 指令參考、GitHub Actions 示例及排程任務。
 
-## Access Control
+---
 
-Kimaki checks Discord permissions before processing any message. Users need **one** of:
+## 🔐 存取控制
 
-- **Server Owner**
-- **Manage Server** permission
-- **Administrator** permission
-- **"Kimaki" role** — create a role with this name (case-insensitive) and assign it to trusted users
+Kimaki 在處理任何訊息前都會檢查 Discord 權限。用戶需要以下**其中一項**：
 
-The "Kimaki" role is the recommended approach for team access. Messages from users without any of these are ignored.
+- **Server Owner（伺服器擁有者）**
+- **Manage Server 權限**
+- **Administrator 權限**
+- **「Kimaki」角色** — 建立一個叫呢個名的角色（大小寫不敏感），並分配給受信任用戶
 
-**Blocking access** — Create a role named **"no-kimaki"** (case-insensitive) to block specific users, even server owners. Useful for preventing accidental bot triggers in shared servers.
+「Kimaki」角色係推薦的團隊存取方式。沒有上述任何權限的用戶訊息會被忽略。
 
-**Multi-agent orchestration** — Other Discord bots are ignored by default. Assign the "Kimaki" role to another bot to let it trigger Kimaki sessions.
+**封鎖存取** — 建立名為 **「no-kimaki」**（大小寫不敏感）的角色，可封鎖特定用戶，即使係 server owner 都有效。適合用於防止在共享伺服器中意外觸發 bot。
 
-## Model & Agent Configuration
+**多 agent 協作** — 其他 Discord bot 預設會被忽略。將「Kimaki」角色分配給另一個 bot，就可以讓佢觸發 Kimaki session。
 
-Set the AI model in your project's `opencode.json`:
+---
+
+## 🤖 模型 & Agent 配置
+
+在你 project 的 `opencode.json` 中設定 AI 模型：
 
 ```json
 {
@@ -142,21 +235,43 @@ Set the AI model in your project's `opencode.json`:
 }
 ```
 
-Format: `provider/model-name`. Examples: `anthropic/claude-opus-4-20250514`, `openai/gpt-4o`, `google/gemini-2.5-pro`.
+格式：`provider/model-name`。示例：`anthropic/claude-opus-4-20250514`、`openai/gpt-4o`、`google/gemini-2.5-pro`。
 
-Or use `/model` and `/agent` slash commands to change settings per channel or session.
+或者用 `/model` 和 `/agent` slash 指令按頻道或 session 更改設定。
 
-## Best Practices
+---
 
-**Create a dedicated Discord server for your agents.** This keeps coding sessions separate from other servers and gives you full control over permissions.
+## 💡 最佳實踐
 
-**Use the "Kimaki" role for team access.** Assign it to users who should be able to trigger sessions.
+**🏠 為你的 agent 建立專用 Discord 伺服器。** 呢樣可以將 coding session 與其他伺服器分開，讓你完全控制權限。
 
-**Send long prompts as file attachments.** Discord has character limits. Tap the plus icon and use "Send message as file" for longer prompts. Kimaki reads file attachments as your message.
+**👥 用「Kimaki」角色管理團隊存取。** 將角色分配給應能觸發 session 的用戶。
 
-## Advanced Topics
+**📄 用檔案附件發送長提示。** Discord 有字數限制。點擊加號圖示，使用「Send message as file」發送較長提示。Kimaki 會讀取檔案附件作為你的訊息內容。
 
-- [**Advanced Setup**](docs/advanced-setup.md) — Running multiple instances, multiple Discord servers, architecture details
-- [**CI & Automation**](docs/ci-automation.md) — Programmatic sessions, GitHub Actions, scheduled tasks, per-session permissions
-- [**Screen Sharing**](docs/screen-sharing.md) — Share your screen via browser link (macOS & Linux setup)
-- [**Internals**](docs/internals.md) — How Kimaki works under the hood (SQLite, lock port, channel metadata, voice processing)
+---
+
+## 🗺️ 開發路線圖
+
+呢個 fork 按以下階段演進：
+
+| 階段 | 內容 | 狀態 |
+|---|---|---|
+| **Phase 1** 🧩 | Discord Self-Host MVP，backend 抽象框架，OpenCode runner | ✅ 完成 |
+| **Phase 2a** 🔌 | Gemini CLI backend，text-mode Discord routing | ✅ 完成 |
+| **Phase 5** ⚡ | Kiro CLI rich backend Phase 1 Discord routing | ✅ 完成 |
+| **Phase 2b** 📱 | Telegram Self-Host MVP | 🚧 計劃中 |
+| **Phase 3** 📦 | Self-Host Packaging & Deployment | 🚧 計劃中 |
+| **Phase 4** ✨ | Feature Parity & 進階功能 | 🚧 計劃中 |
+
+詳見 [docs/roadmaps/](docs/roadmaps/) 目錄。
+
+---
+
+## 📚 進階主題
+
+- [**進階設定**](docs/advanced-setup.md) — 多實例、多 Discord 伺服器、架構詳情
+- [**CI & 自動化**](docs/ci-automation.md) — 程式化 session、GitHub Actions、排程任務、per-session 權限
+- [**螢幕分享**](docs/screen-sharing.md) — 透過瀏覽器連結分享螢幕（macOS 及 Linux 設定）
+- [**內部原理**](docs/internals.md) — Kimaki 運作原理（SQLite、lock port、頻道 metadata、語音處理）
+- [**開發路線圖**](docs/roadmaps/) — 各階段計劃與實作狀態

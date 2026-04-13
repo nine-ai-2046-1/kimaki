@@ -180,9 +180,19 @@ model channel_backends {
 }
 
 model session_backends {
-  session_id String    @id
-  backend_id BackendId
-  created_at DateTime? @default(now())
+  session_id          String    @id
+  backend_id          BackendId
+  backend_session_id  String?
+  created_at          DateTime? @default(now())
+}
+
+model session_github_credentials {
+  session_id      String    @id
+  github_token    String?
+  git_user_name   String?
+  git_user_email  String?
+  created_at      DateTime? @default(now())
+  updated_at      DateTime? @default(now()) @updatedAt
 }
 
 model channel_worktrees {

@@ -217,12 +217,32 @@ async function migrateSchema(prisma: PrismaClient): Promise<void> {
     `CREATE TABLE IF NOT EXISTS "session_backends" (
       "session_id" TEXT NOT NULL PRIMARY KEY,
       "backend_id" TEXT NOT NULL,
+      "backend_session_id" TEXT,
       "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
   ]
   for (const stmt of backendTableStatements) {
     await prisma.$executeRawUnsafe(stmt)
   }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE session_backends ADD COLUMN backend_session_id TEXT',
+    )
+  } catch {
+    // Column already exists
+  }
+
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "session_github_credentials" (
+      "session_id" TEXT NOT NULL PRIMARY KEY,
+      "github_token" TEXT,
+      "git_user_name" TEXT,
+      "git_user_email" TEXT,
+      "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+  )
 
   // Migration: move session_thinking data into session_models.variant.
   // session_thinking table is left in place (not dropped) so older kimaki versions
