@@ -16,17 +16,23 @@ Kimaki 係一個 Discord bot，讓你直接用 Discord 控制 coding 任務。�
 ## 🚀 快速開始
 
 ```bash
-# 1️⃣ Clone 呢個 repo
-git clone https://github.com/nine-ai-2046-1/kimaki.git
-cd kimaki-fork
+# 1️⃣ Clone 呢個 repo（連同 submodules）
+git clone --recurse-submodules https://github.com/nine-ai-2046-1/kimaki.git
+cd kimaki
 
-# 2️⃣ 安裝依賴
+# 如果已 clone 但未 init submodules，補跑呢條：
+# git submodule update --init errore traforo opencode-injection-guard
+
+# 2️⃣ 安裝依賴（從 repo 根目錄）
 pnpm install
 
-# 3️⃣ Build CLI
+# 3️⃣ Build workspace packages
+pnpm prepare
+
+# 4️⃣ Build CLI
 cd cli && pnpm build && cd ..
 
-# 4️⃣ 啟動 bot
+# 5️⃣ 啟動 bot
 node cli/bin.js
 ```
 
