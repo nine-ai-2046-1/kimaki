@@ -26,11 +26,16 @@ cd kimaki
 # 2️⃣ 安裝依賴（從 repo 根目錄）
 pnpm install
 
-# 3️⃣ Build workspace packages
+# 3️⃣ Build workspace packages（包括 discord-digital-twin 依賴）
 pnpm prepare
 
 # 4️⃣ Build CLI
 cd cli && pnpm build && cd ..
+
+# 如果 pnpm prepare 出現 sqlite3 錯誤，可以分步跑：
+# pnpm --filter discord-digital-twin exec prisma generate
+# pnpm --filter discord-digital-twin run build
+# cd cli && pnpm build && cd ..
 
 # 5️⃣ 啟動 bot
 node cli/bin.js
