@@ -1,5 +1,5 @@
 {
-  "name": "kimaki",
+  "name": "@nine2046/kimaki",
   "module": "index.ts",
   "type": "module",
   "version": "0.4.97",
@@ -21,13 +21,18 @@
     "format": "oxfmt src",
     "sync-skills": "tsx scripts/sync-skills.ts"
   },
-  "repository": "https://github.com/remorses/kimaki",
+  "repository": "https://github.com/nine-ai-2046-1/kimaki",
   "bin": "bin.js",
   "files": [
     "dist",
     "skills",
     "schema.prisma",
     "bin.js"
+  ],
+  "bundleDependencies": [
+    "libsqlproxy",
+    "traforo",
+    "opencode-injection-guard"
   ],
   "devDependencies": {
     "@types/bun": "latest",
@@ -65,7 +70,7 @@
     "diff": "^8.0.4",
     "discord.js": "^14.25.1",
     "domhandler": "^6.0.1",
-    "errore": "workspace:^",
+    "errore": "^0.14.1",
     "goke": "^6.3.2",
     "htmlparser2": "^12.0.0",
     "kitty-graphics-agent": "^0.0.5",
