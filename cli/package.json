@@ -2,7 +2,7 @@
   "name": "@nine-ai-2046-1/kimaki",
   "module": "index.ts",
   "type": "module",
-  "version": "0.4.97",
+  "version": "0.5.18",
   "scripts": {
     "dev": "tsx src/bin.ts",
     "prepublishOnly": "prisma generate && pnpm tsc",
