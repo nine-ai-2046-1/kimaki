@@ -15,6 +15,27 @@ Kimaki 係一個 Discord bot，讓你直接用 Discord 控制 coding 任務。�
 
 ## 🚀 快速開始
 
+### 方法一：npx 安裝（推薦）
+
+需要先登入 GitHub Packages（只需做一次）：
+
+```bash
+# 1️⃣ 喺 GitHub 建立 Personal Access Token（PAT）
+# 去 https://github.com/settings/tokens → Generate new token (classic)
+# 勾選權限：read:packages
+
+# 2️⃣ 登入 GitHub Packages
+npm login --registry=https://npm.pkg.github.com --scope=@nine-ai-2046-1
+# Username: 你嘅 GitHub username
+# Password: 你嘅 PAT token
+# Email: 你嘅 email
+
+# 3️⃣ 直接跑
+npx @nine-ai-2046-1/kimaki@latest
+```
+
+### 方法二：從源碼 Build
+
 ```bash
 # 1️⃣ Clone 呢個 repo（連同 submodules）
 git clone --recurse-submodules https://github.com/nine-ai-2046-1/kimaki.git
@@ -40,6 +61,8 @@ cd cli && pnpm build && cd ..
 # 5️⃣ 啟動 bot
 node cli/bin.js
 ```
+
+---
 
 首次啟動時，CLI 會引導你完成互動式設定。你只需安裝 bot 入你嘅 Discord server，揀定 project，就搞掂。
 

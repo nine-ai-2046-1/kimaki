@@ -1,11 +1,11 @@
 {
-  "name": "@nine2046/kimaki",
+  "name": "@nine-ai-2046-1/kimaki",
   "module": "index.ts",
   "type": "module",
   "version": "0.4.97",
   "scripts": {
     "dev": "tsx src/bin.ts",
-    "prepublishOnly": "pnpm generate && pnpm tsc",
+    "prepublishOnly": "prisma generate && pnpm tsc",
     "build": "pnpm generate && pnpm tsc",
     "build:runtime": "pnpm generate && tsc -p tsconfig.runtime.json",
     "dev:bun": "DEBUG=1 bun --env-file .env src/bin.ts",
