@@ -25,7 +25,6 @@
   "bin": "bin.js",
   "files": [
     "dist",
-    "src",
     "skills",
     "schema.prisma",
     "bin.js"
