@@ -1,0 +1,8 @@
+.env
+.env.*
+*.test.ts
+*.e2e.test.ts
+scripts/
+dev.db
+tmp
+src/generated
